@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nicole Beauty</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f0eb; color: #333; }
+
+  .header { background: linear-gradient(135deg, #8B5E83 0%, #C4A4B8 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 10px rgba(0,0,0,0.15); flex-wrap: wrap; gap: 8px; }
+  .header h1 { font-size: 22px; font-weight: 300; letter-spacing: 2px; }
+  .header .date { font-size: 13px; opacity: 0.9; }
+  .header-actions { display: flex; gap: 8px; }
+  .header-actions button { padding: 6px 14px; border: 1px solid rgba(255,255,255,0.5); background: transparent; color: white; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+  .header-actions button:hover { background: rgba(255,255,255,0.2); }
+
+  .tabs { display: flex; background: white; border-bottom: 2px solid #e0d5da; padding: 0 10px; overflow-x: auto; }
+  .tab { padding: 12px 18px; cursor: pointer; font-size: 13px; font-weight: 500; color: #888; border-bottom: 3px solid transparent; transition: all 0.2s; white-space: nowrap; }
+  .tab:hover { color: #8B5E83; }
+  .tab.active { color: #8B5E83; border-bottom-color: #8B5E83; }
+
+  .content { max-width: 1200px; margin: 16px auto; padding: 0 16px; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .card h2 { font-size: 17px; color: #8B5E83; margin-bottom: 14px; font-weight: 500; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: linear-gradient(135deg, #f8f4f7, #fff); border-radius: 10px; padding: 14px; border-left: 4px solid #8B5E83; }
+  .stat-card.green { border-left-color: #70AD47; }
+  .stat-card.red { border-left-color: #E74C3C; }
+  .stat-card.orange { border-left-color: #ED7D31; }
+  .stat-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-value { font-size: 22px; font-weight: 600; color: #333; margin-top: 4px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #8B5E83; color: white; padding: 8px 10px; text-align: left; font-weight: 500; font-size: 12px; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f0e8ed; }
+  tr:hover td { background: #faf6f9; }
+
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .form-group { display: flex; flex-direction: column; flex: 1; min-width: 140px; }
+  .form-group label { font-size: 11px; color: #888; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-group input, .form-group select { padding: 9px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; transition: border 0.2s; }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: #8B5E83; }
+
+  .btn { padding: 9px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+  .btn-primary { background: #8B5E83; color: white; }
+  .btn-primary:hover { background: #7a4f73; }
+  .btn-danger { background: #E74C3C; color: white; }
+  .btn-danger:hover { background: #c0392b; }
+  .btn-sm { padding: 5px 12px; font-size: 11px; }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+  .badge-paid { background: #C6EFCE; color: #006100; }
+  .badge-unpaid { background: #FFC7CE; color: #9C0006; }
+
+  .empty-msg { text-align: center; padding: 30px; color: #bbb; font-size: 14px; }
+
+  .month-filter { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; background: white; padding: 12px 16px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .month-filter label { font-size: 13px; color: #666; }
+  .month-filter input { padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+
+  .chart-bar-container { display: flex; align-items: flex-end; gap: 8px; height: 180px; padding: 10px 0; border-bottom: 2px solid #e0d5da; margin-bottom: 8px; }
+  .chart-bar-group { display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 150px; }
+  .chart-bar { width: 28px; border-radius: 4px 4px 0 0; transition: height 0.3s; min-height: 2px; }
+  .chart-bar.revenue { background: #70AD47; }
+  .chart-bar.payout { background: #ED7D31; }
+  .chart-bar.salon { background: #8B5E83; }
+  .chart-bar-label { font-size: 11px; color: #888; margin-top: 6px; text-align: center; }
+  .chart-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: #666; }
+  .chart-legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
+
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 999; opacity: 0; transition: opacity 0.3s; }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 768px) {
+    .header { padding: 12px 14px; }
+    .header h1 { font-size: 18px; }
+    .form-row { flex-direction: column; }
+    .form-group { min-width: 100%; }
+    .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-value { font-size: 18px; }
+    .tab { padding: 10px 12px; font-size: 12px; }
+    .content { padding: 0 10px; margin: 10px auto; }
+    .card { padding: 14px; }
+    .master-grid { grid-template-columns: 1fr !important; }
+    table { font-size: 12px; }
+    th, td { padding: 6px 8px; }
+    .chart-bar { width: 20px; }
+    .header-actions button { padding: 5px 10px; font-size: 11px; }
+    .btn { padding: 8px 16px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>NICOLE BEAUTY</h1>
+    <div class="date" id="todayDate"></div>
+  </div>
+  <div class="header-actions">
+    <button onclick="saveData()">Сохранить данные</button>
+    <button onclick="document.getElementById('loadFile').click()">Загрузить данные</button>
+    <input type="file" id="loadFile" accept=".json" onchange="loadData(this)" style="display:none;">
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showSection('operational')">Записи</div>
+  <div class="tab" onclick="showSection('finance')">Финансы</div>
+  <div class="tab" onclick="showSection('inventory')">Продукция</div>
+  <div class="tab" onclick="showSection('reports')">Отчёты</div>
+</div>
+
+<div class="content">
+
+<!-- ==================== OPERATIONAL ==================== -->
+<div class="section active" id="operational">
+
+  <div class="month-filter">
+    <label>Месяц:</label>
+    <input type="month" id="opMonth" onchange="renderAll()">
+  </div>
+
+  <div class="stats" id="opStats"></div>
+
+  <div class="card">
+    <h2>Фото из тетради</h2>
+    <p style="color:#888;font-size:12px;margin-bottom:10px;">Загрузите фото из тетради, чтобы видеть данные при заполнении</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;">
+      <div>
+        <input type="file" id="photoUpload" accept="image/*" onchange="showPhoto(this)" style="font-size:13px;">
+        <br>
+        <button class="btn btn-danger btn-sm" onclick="clearPhoto()" style="display:none;margin-top:6px;" id="clearPhotoBtn">Убрать фото</button>
+      </div>
+      <div id="photoPreview" style="display:none;max-width:100%;margin-top:6px;">
+        <img id="photoImg" src="" style="max-width:100%;max-height:400px;border-radius:8px;border:2px solid #e0d5da;cursor:pointer;" onclick="togglePhotoSize(this)">
+        <p style="color:#aaa;font-size:10px;margin-top:3px;">Нажмите на фото, чтобы увеличить / уменьшить</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Итог дня</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Дата</label>
+        <input type="date" id="dayDate">
+      </div>
+    </div>
+    <div class="master-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;">
+      <div style="background:#f4f8f4;border-radius:10px;padding:14px;">
+        <h3 style="margin-bottom:3px;color:#70AD47;font-size:15px;">Людмила</h3>
+        <p style="color:#999;font-size:11px;margin-bottom:8px;">Стрижка 50/50 | Окрашивание 40/60</p>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label>Выручка</label>
+          <input type="number" id="dayRevLudmila" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Доля мастера</label>
+          <input type="number" id="dayPayLudmila" placeholder="0">
+        </div>
+      </div>
+      <div style="background:#f8f4f7;border-radius:10px;padding:14px;">
+        <h3 style="margin-bottom:3px;color:#8B5E83;font-size:15px;">Ирина</h3>
+        <p style="color:#999;font-size:11px;margin-bottom:8px;">&nbsp;</p>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label>Выручка</label>
+          <input type="number" id="dayRevIrina" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Доля мастера</label>
+          <input type="number" id="dayPayIrina" placeholder="0">
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <button class="btn btn-primary" onclick="addDaySummary()">Сохранить итог дня</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Журнал по дням</h2>
+    <table>
+      <thead>
+        <tr><th>Дата</th><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Салону</th><th></th></tr>
+      </thead>
+      <tbody id="dayTable"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Итог за месяц</h2>
+    <table>
+      <thead>
+        <tr><th>Мастер</th><th>Дней</th><th>Выручка</th><th>Мастеру</th><th>Салону</th></tr>
+      </thead>
+      <tbody id="monthReport"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== FINANCE ==================== -->
+<div class="section" id="finance">
+
+  <div class="month-filter">
+    <label>Месяц:</label>
+    <input type="month" id="finMonth" onchange="renderAll()">
+  </div>
+
+  <div class="stats" id="finStats"></div>
+
+  <div class="card">
+    <h2>Новый доход</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Дата</label><input type="date" id="incDate"></div>
+      <div class="form-group"><label>Категория</label>
+        <select id="incCat"><option>Услуги</option><option>Аренда (субаренда)</option><option>Продажа товаров</option><option>Прочее</option></select>
+      </div>
+      <div class="form-group"><label>Описание</label><input type="text" id="incDesc" placeholder="Описание"></div>
+      <div class="form-group"><label>Сумма</label><input type="number" id="incAmount"></div>
+      <div class="form-group"><label>Способ оплаты</label>
+        <select id="incMethod"><option>Наличные</option><option>Карта</option><option>Перевод</option></select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="addIncome()" style="margin-top:6px;">Добавить доход</button>
+  </div>
+
+  <div class="card">
+    <h2>Новый расход</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Дата</label><input type="date" id="expDate"></div>
+      <div class="form-group"><label>Категория</label>
+        <select id="expCat"><option>Аренда</option><option>Коммунальные</option><option>Материалы</option><option>Реклама</option><option>Зарплата</option><option>Прочее</option></select>
+      </div>
+      <div class="form-group"><label>Описание</label><input type="text" id="expDesc" placeholder="Описание"></div>
+      <div class="form-group"><label>Сумма</label><input type="number" id="expAmount"></div>
+      <div class="form-group"><label>Поставщик</label><input type="text" id="expSupplier" placeholder="Поставщик"></div>
+      <div class="form-group"><label>Статус</label>
+        <select id="expStatus"><option>Оплачено</option><option>Не оплачено</option></select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="addExpense()" style="margin-top:6px;">Добавить расход</button>
+  </div>
+
+  <div class="card">
+    <h2>Доходы</h2>
+    <table>
+      <thead><tr><th>Дата</th><th>Категория</th><th>Описание</th><th>Сумма</th><th>Оплата</th><th></th></tr></thead>
+      <tbody id="incTable"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Расходы</h2>
+    <table>
+      <thead><tr><th>Дата</th><th>Категория</th><th>Описание</th><th>Сумма</th><th>Поставщик</th><th>Статус</th><th></th></tr></thead>
+      <tbody id="expTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== INVENTORY ==================== -->
+<div class="section" id="inventory">
+
+  <div class="stats" id="invStats"></div>
+
+  <div class="card">
+    <h2>Добавить продукт</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Марка</label>
+        <select id="invCat"><option>Constant Delight</option><option>Matrix</option></select>
+      </div>
+      <div class="form-group"><label>Наименование</label><input type="text" id="invName" placeholder="Название продукта"></div>
+    </div>
+    <button class="btn btn-primary" onclick="addInventoryItem()" style="margin-top:6px;">Добавить</button>
+  </div>
+
+  <div class="card">
+    <h2>Продукция мастеров</h2>
+    <table>
+      <thead><tr><th>Марка</th><th>Наименование</th><th></th></tr></thead>
+      <tbody id="invTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== REPORTS ==================== -->
+<div class="section" id="reports">
+
+  <div class="month-filter">
+    <label>Месяц:</label>
+    <input type="month" id="repMonth" onchange="renderAll()">
+  </div>
+
+  <div class="stats" id="repStats"></div>
+
+  <div class="card">
+    <h2>Выручка по мастерам</h2>
+    <div id="chartMasters"></div>
+    <div class="chart-legend">
+      <span><span class="chart-legend-dot" style="background:#70AD47;"></span>Выручка</span>
+      <span><span class="chart-legend-dot" style="background:#ED7D31;"></span>Мастеру</span>
+      <span><span class="chart-legend-dot" style="background:#8B5E83;"></span>Салону</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Доходы и расходы</h2>
+    <div id="chartFinance"></div>
+    <div class="chart-legend">
+      <span><span class="chart-legend-dot" style="background:#70AD47;"></span>Доходы</span>
+      <span><span class="chart-legend-dot" style="background:#E74C3C;"></span>Расходы</span>
+      <span><span class="chart-legend-dot" style="background:#8B5E83;"></span>Прибыль</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Расходы по категориям</h2>
+    <table>
+      <thead><tr><th>Категория</th><th>Сумма</th><th>Доля</th></tr></thead>
+      <tbody id="expByCatTable"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ====== DATA ======
+const data = {
+  masters: [
+    { name: 'Людмила', spec: 'Волосы' },
+    { name: 'Ирина', spec: 'Волосы' },
+  ],
+  daySummaries: [],
+  income: [],
+  expenses: [],
+  inventory: [
+    { cat:'Constant Delight', name:'Краска для волос' },
+    { cat:'Constant Delight', name:'Оксид 6%' },
+    { cat:'Constant Delight', name:'Шампунь' },
+    { cat:'Constant Delight', name:'Бальзам' },
+    { cat:'Constant Delight', name:'Маска для волос' },
+    { cat:'Matrix', name:'Краска SoColor' },
+    { cat:'Matrix', name:'Оксид 6%' },
+    { cat:'Matrix', name:'Шампунь Total Results' },
+    { cat:'Matrix', name:'Бальзам Total Results' },
+    { cat:'Matrix', name:'Маска Total Results' },
+  ],
+};
+
+// ====== HELPERS ======
+const fmt = n => new Intl.NumberFormat('ru-RU').format(n) + ' ₽';
+const fmtDate = d => { const p = d.split('-'); return `${p[2]}.${p[1]}.${p[0]}`; };
+const today = () => new Date().toISOString().split('T')[0];
+const thisMonth = () => today().substring(0, 7);
+
+function getMonth(id) {
+  const el = document.getElementById(id);
+  return el ? el.value : '';
+}
+
+function matchMonth(dateStr, month) {
+  if (!month) return true;
+  return dateStr.substring(0, 7) === month;
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function confirmDel(msg) {
+  return confirm(msg || 'Удалить эту запись?');
+}
+
+// ====== PHOTO ======
+function showPhoto(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      document.getElementById('photoImg').src = e.target.result;
+      document.getElementById('photoPreview').style.display = 'block';
+      document.getElementById('clearPhotoBtn').style.display = 'inline-block';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+function clearPhoto() {
+  document.getElementById('photoImg').src = '';
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('clearPhotoBtn').style.display = 'none';
+  document.getElementById('photoUpload').value = '';
+}
+function togglePhotoSize(img) {
+  img.style.maxHeight = (img.style.maxHeight === '400px' || !img.style.maxHeight) ? 'none' : '400px';
+}
+
+// ====== SAVE / LOAD ======
+function saveData() {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const d = new Date();
+  a.download = `nicole_beauty_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`;
+  a.click();
+  toast('Данные сохранены!');
+}
+
+function loadData(input) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const loaded = JSON.parse(e.target.result);
+      if (loaded.daySummaries) data.daySummaries = loaded.daySummaries;
+      if (loaded.income) data.income = loaded.income;
+      if (loaded.expenses) data.expenses = loaded.expenses;
+      if (loaded.inventory) data.inventory = loaded.inventory;
+      renderAll();
+      toast('Данные загружены!');
+    } catch(err) {
+      alert('Ошибка: файл повреждён');
+    }
+  };
+  reader.readAsText(input.files[0]);
+  input.value = '';
+}
+
+// ====== NAVIGATION ======
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const tabs = ['operational','finance','inventory','reports'];
+  document.querySelectorAll('.tab')[tabs.indexOf(id)].classList.add('active');
+  renderAll();
+}
+
+// ====== RENDER ======
+function renderAll() {
+  renderOperational();
+  renderFinance();
+  renderInventory();
+  renderReports();
+}
+
+function renderOperational() {
+  const month = getMonth('opMonth');
+  const filtered = data.daySummaries.filter(d => matchMonth(d.date, month));
+
+  const totalRev = filtered.reduce((s, d) => s + d.revenue, 0);
+  const totalMaster = filtered.reduce((s, d) => s + d.masterPay, 0);
+  const totalSalon = totalRev - totalMaster;
+
+  document.getElementById('opStats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Дней</div><div class="stat-value">${filtered.length}</div></div>
+    <div class="stat-card green"><div class="stat-label">Выручка</div><div class="stat-value">${fmt(totalRev)}</div></div>
+    <div class="stat-card orange"><div class="stat-label">Мастерам</div><div class="stat-value">${fmt(totalMaster)}</div></div>
+    <div class="stat-card"><div class="stat-label">Салону</div><div class="stat-value">${fmt(totalSalon)}</div></div>
+  `;
+
+  const tb = document.getElementById('dayTable');
+  if (filtered.length === 0) {
+    tb.innerHTML = '<tr><td colspan="6" class="empty-msg">Нет данных</td></tr>';
+  } else {
+    tb.innerHTML = filtered.map((d, i) => {
+      const realIdx = data.daySummaries.indexOf(d);
+      return `<tr>
+        <td>${fmtDate(d.date)}</td><td>${d.master}</td>
+        <td>${fmt(d.revenue)}</td><td>${fmt(d.masterPay)}</td><td>${fmt(d.revenue - d.masterPay)}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="delDay(${realIdx})">X</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Monthly totals
+  const masterMap = {};
+  filtered.forEach(d => {
+    if (!masterMap[d.master]) masterMap[d.master] = { days: 0, revenue: 0, payout: 0 };
+    masterMap[d.master].days++;
+    masterMap[d.master].revenue += d.revenue;
+    masterMap[d.master].payout += d.masterPay;
+  });
+  const masters = Object.entries(masterMap);
+  const mr = document.getElementById('monthReport');
+  if (masters.length === 0) {
+    mr.innerHTML = '<tr><td colspan="5" class="empty-msg">Нет данных</td></tr>';
+  } else {
+    mr.innerHTML = masters.map(([name, m]) => `<tr>
+      <td>${name}</td><td style="text-align:center">${m.days}</td>
+      <td>${fmt(m.revenue)}</td><td>${fmt(m.payout)}</td><td>${fmt(m.revenue - m.payout)}</td>
+    </tr>`).join('') + `<tr style="font-weight:bold;background:#f8f4f7">
+      <td>ИТОГО</td><td style="text-align:center">${masters.reduce((s,[,m])=>s+m.days,0)}</td>
+      <td>${fmt(masters.reduce((s,[,m])=>s+m.revenue,0))}</td>
+      <td>${fmt(masters.reduce((s,[,m])=>s+m.payout,0))}</td>
+      <td>${fmt(masters.reduce((s,[,m])=>s+m.revenue-m.payout,0))}</td>
+    </tr>`;
+  }
+}
+
+function renderFinance() {
+  const month = getMonth('finMonth');
+  const incF = data.income.filter(i => matchMonth(i.date, month));
+  const expF = data.expenses.filter(e => matchMonth(e.date, month));
+
+  const totalInc = incF.reduce((s, i) => s + i.amount, 0);
+  const totalExp = expF.reduce((s, e) => s + e.amount, 0);
+  const unpaid = expF.filter(e => e.status === 'Не оплачено').reduce((s, e) => s + e.amount, 0);
+
+  document.getElementById('finStats').innerHTML = `
+    <div class="stat-card green"><div class="stat-label">Доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
+    <div class="stat-card red"><div class="stat-label">Расходы</div><div class="stat-value">${fmt(totalExp)}</div></div>
+    <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(totalInc - totalExp)}</div></div>
+    <div class="stat-card orange"><div class="stat-label">Не оплачено</div><div class="stat-value">${fmt(unpaid)}</div></div>
+  `;
+
+  document.getElementById('incTable').innerHTML = incF.length === 0
+    ? '<tr><td colspan="6" class="empty-msg">Нет доходов</td></tr>'
+    : incF.map(inc => {
+        const ri = data.income.indexOf(inc);
+        return `<tr>
+          <td>${fmtDate(inc.date)}</td><td>${inc.cat}</td><td>${inc.desc}</td><td>${fmt(inc.amount)}</td><td>${inc.method}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="delInc(${ri})">X</button></td>
+        </tr>`;
+      }).join('');
+
+  document.getElementById('expTable').innerHTML = expF.length === 0
+    ? '<tr><td colspan="7" class="empty-msg">Нет расходов</td></tr>'
+    : expF.map(e => {
+        const ri = data.expenses.indexOf(e);
+        return `<tr>
+          <td>${fmtDate(e.date)}</td><td>${e.cat}</td><td>${e.desc}</td><td>${fmt(e.amount)}</td><td>${e.supplier}</td>
+          <td><span class="badge ${e.status === 'Оплачено' ? 'badge-paid' : 'badge-unpaid'}">${e.status}</span></td>
+          <td><button class="btn btn-danger btn-sm" onclick="delExp(${ri})">X</button></td>
+        </tr>`;
+      }).join('');
+}
+
+function renderInventory() {
+  const cd = data.inventory.filter(it => it.cat === 'Constant Delight').length;
+  const mx = data.inventory.filter(it => it.cat === 'Matrix').length;
+
+  document.getElementById('invStats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Constant Delight</div><div class="stat-value">${cd} поз.</div></div>
+    <div class="stat-card green"><div class="stat-label">Matrix</div><div class="stat-value">${mx} поз.</div></div>
+  `;
+
+  document.getElementById('invTable').innerHTML = data.inventory.length === 0
+    ? '<tr><td colspan="3" class="empty-msg">Нет продукции</td></tr>'
+    : data.inventory.map((it, i) => `<tr>
+        <td>${it.cat}</td><td>${it.name}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="delInv(${i})">X</button></td>
+      </tr>`).join('');
+}
+
+function renderReports() {
+  const month = getMonth('repMonth');
+  const dayF = data.daySummaries.filter(d => matchMonth(d.date, month));
+  const incF = data.income.filter(i => matchMonth(i.date, month));
+  const expF = data.expenses.filter(e => matchMonth(e.date, month));
+
+  const totalRev = dayF.reduce((s, d) => s + d.revenue, 0);
+  const totalInc = incF.reduce((s, i) => s + i.amount, 0);
+  const totalExp = expF.reduce((s, e) => s + e.amount, 0);
+
+  document.getElementById('repStats').innerHTML = `
+    <div class="stat-card green"><div class="stat-label">Выручка от услуг</div><div class="stat-value">${fmt(totalRev)}</div></div>
+    <div class="stat-card green"><div class="stat-label">Все доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
+    <div class="stat-card red"><div class="stat-label">Все расходы</div><div class="stat-value">${fmt(totalExp)}</div></div>
+    <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(totalInc - totalExp)}</div></div>
+  `;
+
+  // Master chart
+  const masterMap = {};
+  dayF.forEach(d => {
+    if (!masterMap[d.master]) masterMap[d.master] = { revenue: 0, payout: 0 };
+    masterMap[d.master].revenue += d.revenue;
+    masterMap[d.master].payout += d.masterPay;
+  });
+  const mEntries = Object.entries(masterMap);
+  const maxVal = Math.max(1, ...mEntries.map(([,m]) => m.revenue));
+
+  if (mEntries.length === 0) {
+    document.getElementById('chartMasters').innerHTML = '<div class="empty-msg">Нет данных</div>';
+  } else {
+    document.getElementById('chartMasters').innerHTML = `
+      <div class="chart-bar-container">
+        ${mEntries.map(([name, m]) => `
+          <div class="chart-bar-group">
+            <div class="chart-bars">
+              <div class="chart-bar revenue" style="height:${(m.revenue/maxVal)*140}px;" title="${fmt(m.revenue)}"></div>
+              <div class="chart-bar payout" style="height:${(m.payout/maxVal)*140}px;" title="${fmt(m.payout)}"></div>
+              <div class="chart-bar salon" style="height:${((m.revenue-m.payout)/maxVal)*140}px;" title="${fmt(m.revenue-m.payout)}"></div>
+            </div>
+            <div class="chart-bar-label">${name}</div>
+          </div>
+        `).join('')}
+      </div>
+      <table style="margin-top:10px;">
+        <tr><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Салону</th></tr>
+        ${mEntries.map(([name, m]) => `<tr><td>${name}</td><td>${fmt(m.revenue)}</td><td>${fmt(m.payout)}</td><td>${fmt(m.revenue-m.payout)}</td></tr>`).join('')}
+      </table>
+    `;
+  }
+
+  // Finance chart
+  if (totalInc === 0 && totalExp === 0) {
+    document.getElementById('chartFinance').innerHTML = '<div class="empty-msg">Нет данных</div>';
+  } else {
+    const fMax = Math.max(1, totalInc, totalExp);
+    const profit = totalInc - totalExp;
+    document.getElementById('chartFinance').innerHTML = `
+      <div class="chart-bar-container">
+        <div class="chart-bar-group">
+          <div class="chart-bars"><div class="chart-bar revenue" style="height:${(totalInc/fMax)*140}px;" title="${fmt(totalInc)}"></div></div>
+          <div class="chart-bar-label">Доходы</div>
+        </div>
+        <div class="chart-bar-group">
+          <div class="chart-bars"><div class="chart-bar" style="height:${(totalExp/fMax)*140}px;background:#E74C3C;" title="${fmt(totalExp)}"></div></div>
+          <div class="chart-bar-label">Расходы</div>
+        </div>
+        <div class="chart-bar-group">
+          <div class="chart-bars"><div class="chart-bar salon" style="height:${(Math.abs(profit)/fMax)*140}px;" title="${fmt(profit)}"></div></div>
+          <div class="chart-bar-label">Прибыль</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Expenses by category
+  const catMap = {};
+  expF.forEach(e => { catMap[e.cat] = (catMap[e.cat] || 0) + e.amount; });
+  const cats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+  document.getElementById('expByCatTable').innerHTML = cats.length === 0
+    ? '<tr><td colspan="3" class="empty-msg">Нет расходов</td></tr>'
+    : cats.map(([cat, sum]) => `<tr>
+        <td>${cat}</td><td>${fmt(sum)}</td>
+        <td>${totalExp > 0 ? Math.round(sum/totalExp*100) : 0}%</td>
+      </tr>`).join('') + `<tr style="font-weight:bold;background:#f8f4f7">
+        <td>ИТОГО</td><td>${fmt(totalExp)}</td><td>100%</td>
+      </tr>`;
+}
+
+// ====== ACTIONS ======
+function addDaySummary() {
+  const date = document.getElementById('dayDate').value || today();
+  const revL = parseInt(document.getElementById('dayRevLudmila').value) || 0;
+  const payL = parseInt(document.getElementById('dayPayLudmila').value) || 0;
+  const revI = parseInt(document.getElementById('dayRevIrina').value) || 0;
+  const payI = parseInt(document.getElementById('dayPayIrina').value) || 0;
+  if (!revL && !revI) return alert('Укажите выручку хотя бы одного мастера!');
+  if (revL) data.daySummaries.push({ date, master: 'Людмила', revenue: revL, masterPay: payL });
+  if (revI) data.daySummaries.push({ date, master: 'Ирина', revenue: revI, masterPay: payI });
+  document.getElementById('dayRevLudmila').value = '';
+  document.getElementById('dayPayLudmila').value = '';
+  document.getElementById('dayRevIrina').value = '';
+  document.getElementById('dayPayIrina').value = '';
+  toast('Итог дня сохранён!');
+  renderAll();
+}
+
+function addIncome() {
+  const date = document.getElementById('incDate').value || today();
+  const cat = document.getElementById('incCat').value;
+  const desc = document.getElementById('incDesc').value;
+  const amount = parseInt(document.getElementById('incAmount').value) || 0;
+  const method = document.getElementById('incMethod').value;
+  if (!amount) return alert('Укажите сумму!');
+  data.income.push({ date, cat, desc, amount, method });
+  document.getElementById('incDesc').value = '';
+  document.getElementById('incAmount').value = '';
+  toast('Доход добавлен!');
+  renderAll();
+}
+
+function addExpense() {
+  const date = document.getElementById('expDate').value || today();
+  const cat = document.getElementById('expCat').value;
+  const desc = document.getElementById('expDesc').value;
+  const amount = parseInt(document.getElementById('expAmount').value) || 0;
+  const supplier = document.getElementById('expSupplier').value;
+  const status = document.getElementById('expStatus').value;
+  if (!amount) return alert('Укажите сумму!');
+  data.expenses.push({ date, cat, desc, amount, supplier, status });
+  document.getElementById('expDesc').value = '';
+  document.getElementById('expAmount').value = '';
+  document.getElementById('expSupplier').value = '';
+  toast('Расход добавлен!');
+  renderAll();
+}
+
+function addInventoryItem() {
+  const cat = document.getElementById('invCat').value;
+  const name = document.getElementById('invName').value;
+  if (!name) return alert('Укажите название!');
+  data.inventory.push({ cat, name });
+  document.getElementById('invName').value = '';
+  toast('Продукт добавлен!');
+  renderAll();
+}
+
+function delDay(i) { if (confirmDel()) { data.daySummaries.splice(i, 1); renderAll(); } }
+function delInc(i) { if (confirmDel()) { data.income.splice(i, 1); renderAll(); } }
+function delExp(i) { if (confirmDel()) { data.expenses.splice(i, 1); renderAll(); } }
+function delInv(i) { if (confirmDel('Удалить этот продукт?')) { data.inventory.splice(i, 1); renderAll(); } }
+
+// ====== INIT ======
+document.getElementById('todayDate').textContent = new Date().toLocaleDateString('ru-RU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+document.getElementById('dayDate').value = today();
+document.getElementById('incDate').value = today();
+document.getElementById('expDate').value = today();
+document.getElementById('opMonth').value = thisMonth();
+document.getElementById('finMonth').value = thisMonth();
+document.getElementById('repMonth').value = thisMonth();
+renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+.claude/
+
+# Excel lock files and user spreadsheets (not part of the web app)
+.~lock.*
+*.xlsx
+
+# Never commit Supabase service role or private env
+.env
+.env.local
+.env.*.local
+service_role.txt
+
+# Node (in case anyone later adds tooling)
+node_modules/
