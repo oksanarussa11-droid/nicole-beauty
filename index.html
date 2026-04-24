@@ -135,6 +135,43 @@
   <div class="stats" id="opStats"></div>
 
   <div class="card">
+    <h2>📷 Загрузить фото отчёта (распознавание)</h2>
+    <p style="color:#888;font-size:12px;margin-bottom:10px;">Загрузите фото страницы из тетради — Claude Vision распознает данные, вы проверите и сохраните.</p>
+    <div class="form-row" style="align-items:flex-end;">
+      <div class="form-group">
+        <label>Файл (jpg/png)</label>
+        <input type="file" id="ocrFile" accept="image/*">
+      </div>
+      <button class="btn btn-primary" id="ocrBtn" onclick="parseReportImage()">Распознать</button>
+    </div>
+    <div id="ocrPreview" style="display:none;margin-top:10px;">
+      <img id="ocrImg" src="" style="max-width:100%;max-height:300px;border-radius:8px;border:1px solid #e0d5da;">
+    </div>
+    <div id="ocrStatus" style="margin-top:10px;font-size:13px;color:#666;"></div>
+    <div id="ocrResult" style="display:none;margin-top:14px;">
+      <h3 style="font-size:14px;color:#8B5E83;margin-bottom:8px;">Результат распознавания (проверьте и при необходимости исправьте):</h3>
+      <div class="form-row">
+        <div class="form-group" style="max-width:200px;">
+          <label>Дата отчёта</label>
+          <input type="date" id="ocrDate">
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Заметка</th><th></th></tr></thead>
+        <tbody id="ocrTable"></tbody>
+      </table>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="saveOCRResults()">Сохранить в базу</button>
+        <button class="btn" style="background:#eee;" onclick="cancelOCR()">Отмена</button>
+      </div>
+      <details style="margin-top:10px;">
+        <summary style="cursor:pointer;color:#888;font-size:12px;">Полный распознанный текст (для проверки)</summary>
+        <pre id="ocrRawText" style="white-space:pre-wrap;background:#faf6f9;padding:10px;border-radius:6px;font-size:12px;margin-top:6px;max-height:200px;overflow:auto;"></pre>
+      </details>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Итог дня</h2>
     <div class="form-row">
       <div class="form-group">
@@ -895,6 +932,121 @@ async function delExp(id)     { if (!confirmDel()) return; const { error } = awa
 async function delInv(id)     { if (!confirmDel('Удалить этот продукт?')) return; const { error } = await sb.from('inventory').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 async function delMaster(id)  { if (!confirmDel('Удалить мастера? Его записи останутся, но ссылки могут сломаться.')) return; const { error } = await sb.from('masters').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 async function delService(id) { if (!confirmDel('Удалить услугу?')) return; const { error } = await sb.from('services').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
+
+// ===================== OCR (Claude Vision via /api/parse-report) =====================
+let ocrLastResult = null;
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+async function parseReportImage() {
+  const input = document.getElementById('ocrFile');
+  const btn   = document.getElementById('ocrBtn');
+  const status = document.getElementById('ocrStatus');
+  const result = document.getElementById('ocrResult');
+  const preview = document.getElementById('ocrPreview');
+  if (!input.files || !input.files[0]) return alert('Выберите файл');
+
+  const file = input.files[0];
+  if (file.size > 8 * 1024 * 1024) return alert('Файл слишком большой (>8 МБ). Сожмите изображение.');
+
+  btn.disabled = true;
+  status.textContent = 'Загружаем изображение и отправляем в Claude…';
+  result.style.display = 'none';
+
+  try {
+    const dataUrl = await fileToBase64(file);
+    document.getElementById('ocrImg').src = dataUrl;
+    preview.style.display = 'block';
+
+    const r = await fetch('/api/parse-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image: dataUrl,
+        masters: state.masters.map(m => ({ id: m.id, name: m.name })),
+      }),
+    });
+    const json = await r.json();
+    if (!r.ok) throw new Error(json.error || ('HTTP ' + r.status));
+
+    ocrLastResult = json;
+    status.textContent = `Распознано. Использовано токенов: ${json.usage ? (json.usage.input_tokens + ' in / ' + json.usage.output_tokens + ' out') : 'n/a'}`;
+
+    setVal('ocrDate', json.date || today());
+    document.getElementById('ocrRawText').textContent = json.raw_text || '';
+
+    const tb = document.getElementById('ocrTable');
+    tb.innerHTML = (json.entries || []).map((e, i) => {
+      const opts = state.masters.map(m =>
+        `<option value="${m.id}" ${m.id === e.master_id ? 'selected' : ''}>${m.name}</option>`
+      ).join('');
+      return `<tr data-i="${i}">
+        <td><select class="ocr-master" style="padding:5px 8px;border:1px solid #ddd;border-radius:6px;">
+          <option value="">— выбрать —</option>${opts}
+        </select> <span style="color:#aaa;font-size:11px;">${e.master_name || ''}</span></td>
+        <td><input type="number" class="ocr-rev" value="${e.revenue || 0}" style="width:110px;padding:5px 8px;border:1px solid #ddd;border-radius:6px;"></td>
+        <td><input type="number" class="ocr-pay" value="${e.master_pay || 0}" style="width:110px;padding:5px 8px;border:1px solid #ddd;border-radius:6px;"></td>
+        <td><input type="text" class="ocr-note" value="${(e.note || '').replace(/"/g, '&quot;')}" style="width:160px;padding:5px 8px;border:1px solid #ddd;border-radius:6px;"></td>
+        <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="5" class="empty-msg">Не найдено записей</td></tr>';
+
+    // restore master_id selects (must run after innerHTML)
+    document.querySelectorAll('#ocrTable tr').forEach(tr => {
+      const i = parseInt(tr.dataset.i);
+      const e = json.entries[i];
+      if (!e) return;
+      const sel = tr.querySelector('.ocr-master');
+      if (sel && e.master_id != null) sel.value = String(e.master_id);
+    });
+
+    result.style.display = 'block';
+    toast('Распознавание готово — проверьте и сохраните');
+  } catch (e) {
+    status.textContent = 'Ошибка: ' + (e.message || e);
+    toast('Ошибка распознавания: ' + (e.message || e), true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function saveOCRResults() {
+  const date = val('ocrDate') || today();
+  const rows = [];
+  document.querySelectorAll('#ocrTable tr[data-i]').forEach(tr => {
+    const masterId = parseInt(tr.querySelector('.ocr-master')?.value || '');
+    const revenue  = parseFloat(tr.querySelector('.ocr-rev')?.value || '0') || 0;
+    const pay      = parseFloat(tr.querySelector('.ocr-pay')?.value || '0') || 0;
+    const note     = tr.querySelector('.ocr-note')?.value || null;
+    if (!masterId) return;
+    if (!revenue && !pay) return;
+    rows.push({ date, master_id: masterId, revenue, master_pay: pay, note });
+  });
+  if (!rows.length) return alert('Нет записей для сохранения. Выберите мастеров и заполните суммы.');
+
+  const { error } = await sb.from('day_summaries').insert(rows);
+  if (error) return toast('Ошибка: ' + error.message, true);
+
+  toast(`Сохранено записей: ${rows.length}`);
+  cancelOCR();
+  await loadAll();
+}
+
+function cancelOCR() {
+  ocrLastResult = null;
+  document.getElementById('ocrFile').value = '';
+  document.getElementById('ocrPreview').style.display = 'none';
+  document.getElementById('ocrResult').style.display = 'none';
+  document.getElementById('ocrStatus').textContent = '';
+  document.getElementById('ocrTable').innerHTML = '';
+}
 
 // ===================== INIT =====================
 document.addEventListener('DOMContentLoaded', async () => {

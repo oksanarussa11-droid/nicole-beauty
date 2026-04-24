@@ -7,6 +7,7 @@
 ## Возможности
 
 - **Записи** — ежедневные итоги выручки по каждому мастеру, журнал по дням, итоги за месяц
+- **📷 Распознавание фото отчёта** — загрузите фото страницы из тетради, Claude Vision (Sonnet 4.6) распознает данные, вы проверите и сохраните в один клик
 - **Финансы** — доходы и расходы с категориями, статусами оплаты, поставщиками
 - **Продукция** — каталог продукции по брендам (Constant Delight, Matrix, …)
 - **Мастера** — CRUD мастеров, услуг и матрицы «мастер × услуга» с ценой и % комиссии
@@ -37,12 +38,26 @@ cp config.js.example config.js
 2. На <https://vercel.com/new> импортируйте репо → Framework preset: **Other** → Deploy
 3. `vercel.json` уже настроен, сборка не нужна
 
+### 4. (Опционально) Настройка распознавания фото отчётов
+
+Для работы вкладки «Загрузить фото отчёта» нужен ключ Anthropic API:
+
+1. Создайте ключ на <https://console.anthropic.com/settings/keys>
+2. Vercel Dashboard → ваш проект → **Settings** → **Environment Variables**
+3. Добавьте: `ANTHROPIC_API_KEY` = `sk-ant-api03-...` (для всех окружений: Production, Preview, Development)
+4. Redeploy: вкладка **Deployments** → последний деплой → меню `⋯` → **Redeploy**
+
+Используется модель `claude-sonnet-4-6` со structured outputs (JSON schema) — стоимость ~$0.01–0.03 за фото в зависимости от качества.
+
+> ⚠️ **Безопасность:** ключ хранится только на стороне Vercel как env var, никогда не попадает в браузер и не коммитится в репозиторий.
+
 ## Структура
 
 ```
 index.html             — весь фронтенд (single-page)
 config.js              — URL и anon key (см. config.js.example)
 config.js.example      — шаблон конфига
+api/parse-report.js    — Vercel serverless: Claude Vision для распознавания фото
 supabase/schema.sql    — таблицы, индексы, RLS, сид-данные
 vercel.json            — настройки хостинга
 ```
