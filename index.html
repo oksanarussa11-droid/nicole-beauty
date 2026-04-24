@@ -82,21 +82,88 @@
 
   .banner-warn { background: #fff3cd; color: #856404; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #ffeeba; font-size: 13px; }
 
+  /* Tables scroll horizontally inside their card on narrow screens */
+  .table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; padding: 0 4px; }
+  .table-wrap table { width: 100%; }
+
+  /* Inputs that live inside tables — flexible widths, touch-friendly height */
+  .num-sm  { width: 100px; max-width: 100%; padding: 7px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+  .num-pct { width: 70px;  max-width: 100%; padding: 7px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+  .input-sm { width: 160px; max-width: 100%; padding: 7px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+  .select-sm { padding: 7px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; max-width: 100%; background: white; }
+
+  /* Touch-friendly inputs everywhere */
+  .form-group input, .form-group select, .filter-bar input, .filter-bar select { min-height: 40px; }
+  .btn { min-height: 40px; }
+  .btn-sm { min-height: 32px; }
+
+  input[type="number"] { -moz-appearance: textfield; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* Header status: shrink gracefully */
+  .header-actions { flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
+
+  /* Filter bar wraps cleanly */
+  .filter-bar { row-gap: 8px; }
+  .filter-bar input[type="date"], .filter-bar input[type="month"] { flex: 0 1 auto; min-width: 130px; }
+  .filter-bar > .btn-sm { flex: 0 0 auto; }
+
   @media (max-width: 768px) {
     .header { padding: 12px 14px; }
-    .header h1 { font-size: 18px; }
+    .header h1 { font-size: 18px; letter-spacing: 1px; }
+    .header .date { font-size: 12px; }
     .form-row { flex-direction: column; }
     .form-group { min-width: 100%; }
     .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
     .stat-value { font-size: 18px; }
+    .stat-card { padding: 12px; }
     .tab { padding: 10px 12px; font-size: 12px; }
     .content { padding: 0 10px; margin: 10px auto; }
-    .card { padding: 14px; }
+    .card { padding: 14px 12px; }
+    .card h2 { font-size: 16px; }
     .master-grid { grid-template-columns: 1fr !important; }
-    table { font-size: 12px; }
-    th, td { padding: 6px 8px; }
+
+    /* Tables become horizontally scrollable inside their card */
+    .card table {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      font-size: 12px;
+    }
+    th, td { padding: 7px 8px; white-space: nowrap; }
+    th:first-child, td:first-child { white-space: normal; }
+
     .chart-bar { width: 20px; }
-    .btn { padding: 8px 16px; font-size: 12px; }
+    .btn { padding: 9px 14px; font-size: 13px; }
+    .btn-sm { padding: 6px 10px; font-size: 11px; }
+    .filter-bar { padding: 10px 12px; gap: 8px; }
+    .num-sm  { width: 84px; }
+    .num-pct { width: 60px; }
+    .input-sm { width: 130px; }
+    .toast { left: 12px; right: 12px; bottom: 12px; max-width: none; text-align: center; }
+  }
+
+  @media (max-width: 480px) {
+    .header h1 { font-size: 16px; letter-spacing: 0.5px; }
+    .header .date { display: none; }
+    #statusText { display: none; }
+    .stats { grid-template-columns: 1fr; }
+    .stat-value { font-size: 17px; }
+    .card { padding: 12px 10px; }
+    .card h2 { font-size: 15px; }
+    .tab { padding: 9px 10px; font-size: 11px; }
+    th, td { padding: 6px 7px; font-size: 11px; }
+    .num-sm  { width: 72px; padding: 6px 6px; font-size: 12px; }
+    .num-pct { width: 54px; padding: 6px 6px; font-size: 12px; }
+    .input-sm { width: 110px; padding: 6px 6px; font-size: 12px; }
+    .btn { padding: 9px 12px; font-size: 12px; min-height: 38px; }
+    .chart-bar { width: 16px; }
+    .chart-bar-container { gap: 4px; }
+    .chart-legend { gap: 10px; font-size: 11px; flex-wrap: wrap; }
+    details summary { font-size: 11px; }
   }
 </style>
 </head>
@@ -673,8 +740,8 @@ function renderMasters() {
       rows.push(`<tr>
         <td>${m.name}</td>
         <td>${s.name}</td>
-        <td><input type="number" step="0.01" value="${price}" id="msPrice_${m.id}_${s.id}" style="width:100px;padding:5px 8px;border:1px solid #ddd;border-radius:6px;"></td>
-        <td><input type="number" step="0.01" min="0" max="100" value="${pct}" id="msPct_${m.id}_${s.id}" style="width:80px;padding:5px 8px;border:1px solid #ddd;border-radius:6px;"></td>
+        <td><input type="number" step="0.01" value="${price}" id="msPrice_${m.id}_${s.id}" class="num-sm"></td>
+        <td><input type="number" step="0.01" min="0" max="100" value="${pct}" id="msPct_${m.id}_${s.id}" class="num-pct"></td>
         <td><button class="btn btn-primary btn-sm" onclick="saveMS(${m.id}, ${s.id}, ${id||0})">Сохранить</button></td>
       </tr>`);
     }
@@ -988,12 +1055,12 @@ async function parseReportImage() {
         `<option value="${m.id}" ${m.id === e.master_id ? 'selected' : ''}>${m.name}</option>`
       ).join('');
       return `<tr data-i="${i}">
-        <td><select class="ocr-master" style="padding:5px 8px;border:1px solid #ddd;border-radius:6px;">
+        <td><select class="ocr-master select-sm">
           <option value="">— выбрать —</option>${opts}
-        </select> <span style="color:#aaa;font-size:11px;">${e.master_name || ''}</span></td>
-        <td><input type="number" class="ocr-rev" value="${e.revenue || 0}" style="width:110px;padding:5px 8px;border:1px solid #ddd;border-radius:6px;"></td>
-        <td><input type="number" class="ocr-pay" value="${e.master_pay || 0}" style="width:110px;padding:5px 8px;border:1px solid #ddd;border-radius:6px;"></td>
-        <td><input type="text" class="ocr-note" value="${(e.note || '').replace(/"/g, '&quot;')}" style="width:160px;padding:5px 8px;border:1px solid #ddd;border-radius:6px;"></td>
+        </select><div style="color:#aaa;font-size:11px;margin-top:3px;">${e.master_name || ''}</div></td>
+        <td><input type="number" class="ocr-rev num-sm" value="${e.revenue || 0}"></td>
+        <td><input type="number" class="ocr-pay num-sm" value="${e.master_pay || 0}"></td>
+        <td><input type="text" class="ocr-note input-sm" value="${(e.note || '').replace(/"/g, '&quot;')}"></td>
         <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>
       </tr>`;
     }).join('') || '<tr><td colspan="5" class="empty-msg">Не найдено записей</td></tr>';
