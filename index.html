@@ -82,6 +82,35 @@
 
   .banner-warn { background: #fff3cd; color: #856404; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #ffeeba; font-size: 13px; }
 
+  /* Discreet OCR upload — collapsed by default at bottom of Записи */
+  .ocr-box { max-width: 540px; margin: 8px auto 0; background: transparent; }
+  .ocr-box > summary {
+    list-style: none;
+    cursor: pointer;
+    color: #8B5E83;
+    font-size: 12px;
+    text-align: center;
+    padding: 8px 12px;
+    border: 1px dashed #c4a4b8;
+    border-radius: 8px;
+    opacity: 0.75;
+    transition: opacity 0.15s;
+  }
+  .ocr-box > summary:hover { opacity: 1; }
+  .ocr-box > summary::-webkit-details-marker { display: none; }
+  .ocr-box > summary::before { content: "+ "; }
+  .ocr-box[open] > summary::before { content: "− "; }
+  .ocr-box[open] > summary { background: #faf6f9; opacity: 1; }
+  .ocr-body { background: white; border-radius: 10px; padding: 14px; margin-top: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .ocr-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ocr-row input[type="file"] { flex: 1; min-width: 0; font-size: 12px; }
+  #ocrPreview { margin-top: 10px; }
+  #ocrPreview img { max-width: 100%; max-height: 200px; border-radius: 6px; border: 1px solid #e0d5da; display: block; }
+  #ocrStatus { margin-top: 8px; font-size: 12px; color: #888; }
+  #ocrResult { margin-top: 10px; }
+  .ocr-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  #ocrRawText { white-space: pre-wrap; background: #faf6f9; padding: 8px; border-radius: 6px; font-size: 11px; margin-top: 6px; max-height: 160px; overflow: auto; }
+
   /* Tables scroll horizontally inside their card on narrow screens */
   .table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; padding: 0 4px; }
   .table-wrap table { width: 100%; }
@@ -202,43 +231,6 @@
   <div class="stats" id="opStats"></div>
 
   <div class="card">
-    <h2>📷 Загрузить фото отчёта (распознавание)</h2>
-    <p style="color:#888;font-size:12px;margin-bottom:10px;">Загрузите фото страницы из тетради — Claude Vision распознает данные, вы проверите и сохраните.</p>
-    <div class="form-row" style="align-items:flex-end;">
-      <div class="form-group">
-        <label>Файл (jpg/png)</label>
-        <input type="file" id="ocrFile" accept="image/*">
-      </div>
-      <button class="btn btn-primary" id="ocrBtn" onclick="parseReportImage()">Распознать</button>
-    </div>
-    <div id="ocrPreview" style="display:none;margin-top:10px;">
-      <img id="ocrImg" src="" style="max-width:100%;max-height:300px;border-radius:8px;border:1px solid #e0d5da;">
-    </div>
-    <div id="ocrStatus" style="margin-top:10px;font-size:13px;color:#666;"></div>
-    <div id="ocrResult" style="display:none;margin-top:14px;">
-      <h3 style="font-size:14px;color:#8B5E83;margin-bottom:8px;">Результат распознавания (проверьте и при необходимости исправьте):</h3>
-      <div class="form-row">
-        <div class="form-group" style="max-width:200px;">
-          <label>Дата отчёта</label>
-          <input type="date" id="ocrDate">
-        </div>
-      </div>
-      <table>
-        <thead><tr><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Заметка</th><th></th></tr></thead>
-        <tbody id="ocrTable"></tbody>
-      </table>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="saveOCRResults()">Сохранить в базу</button>
-        <button class="btn" style="background:#eee;" onclick="cancelOCR()">Отмена</button>
-      </div>
-      <details style="margin-top:10px;">
-        <summary style="cursor:pointer;color:#888;font-size:12px;">Полный распознанный текст (для проверки)</summary>
-        <pre id="ocrRawText" style="white-space:pre-wrap;background:#faf6f9;padding:10px;border-radius:6px;font-size:12px;margin-top:6px;max-height:200px;overflow:auto;"></pre>
-      </details>
-    </div>
-  </div>
-
-  <div class="card">
     <h2>Итог дня</h2>
     <div class="form-row">
       <div class="form-group">
@@ -271,6 +263,40 @@
       <tbody id="monthReport"></tbody>
     </table>
   </div>
+
+  <details class="ocr-box">
+    <summary>Распознать фото отчёта</summary>
+    <div class="ocr-body">
+      <div class="ocr-row">
+        <input type="file" id="ocrFile" accept="image/*">
+        <button class="btn btn-sm btn-primary" id="ocrBtn" onclick="parseReportImage()">Распознать</button>
+      </div>
+      <div id="ocrPreview" style="display:none;">
+        <img id="ocrImg" src="" alt="">
+      </div>
+      <div id="ocrStatus"></div>
+      <div id="ocrResult" style="display:none;">
+        <div class="form-row">
+          <div class="form-group" style="max-width:200px;">
+            <label>Дата отчёта</label>
+            <input type="date" id="ocrDate">
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Заметка</th><th></th></tr></thead>
+          <tbody id="ocrTable"></tbody>
+        </table>
+        <div class="ocr-actions">
+          <button class="btn btn-sm btn-primary" onclick="saveOCRResults()">Сохранить в базу</button>
+          <button class="btn btn-sm" style="background:#eee;" onclick="cancelOCR()">Отмена</button>
+        </div>
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer;color:#888;font-size:11px;">Полный распознанный текст</summary>
+          <pre id="ocrRawText"></pre>
+        </details>
+      </div>
+    </div>
+  </details>
 </div>
 
 <!-- ==================== FINANCE ==================== -->
