@@ -160,7 +160,8 @@ module.exports = async (req, res) => {
     // 8. Log successful attempt (audit trail)
     await sb('POST', 'pin_attempts', { master_id: masterId, ip, success: true }).catch(() => {});
 
-    // 9. Fire-and-forget Telegram notification — never breaks the response.
+    // 9. Telegram notification — awaited (Vercel reaps in-flight requests after
+    // res.end), with a hard timeout so a slow Telegram never blocks the master.
     if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
       const msg = [
         '✂️ *Новая запись*',
@@ -174,15 +175,28 @@ module.exports = async (req, res) => {
         `_${nowTime.slice(0, 5)} · ${todayDate}_`,
       ].filter(Boolean).join('\n');
 
-      fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: process.env.TELEGRAM_CHAT_ID,
-          text: msg,
-          parse_mode: 'Markdown',
-        }),
-      }).catch(e => console.error('telegram notify failed:', e));
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      try {
+        const r = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: process.env.TELEGRAM_CHAT_ID,
+            text: msg,
+            parse_mode: 'Markdown',
+          }),
+          signal: ctrl.signal,
+        });
+        if (!r.ok) {
+          const detail = await r.text().catch(() => '');
+          console.error('telegram notify non-OK:', r.status, detail.slice(0, 300));
+        }
+      } catch (e) {
+        console.error('telegram notify failed:', e?.message || e);
+      } finally {
+        clearTimeout(timer);
+      }
     }
 
     return json(res, 200, {
