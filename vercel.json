@@ -2,6 +2,7 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "buildCommand": "if [ \"$SITE\" = \"pro\" ]; then cp register.html index.html && echo 'pro site: register.html copied to index.html'; else echo 'admin site: no swap'; fi",
+  "outputDirectory": ".",
   "headers": [
     {
       "source": "/(.*)",
