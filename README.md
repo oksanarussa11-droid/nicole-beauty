@@ -58,11 +58,17 @@ cp config.js.example config.js
 
 **5.1. Миграция БД**
 
-Supabase → **SQL Editor → New query** → вставьте [`supabase/migrations/002_attendances.sql`](supabase/migrations/002_attendances.sql) → **RUN**. Добавит:
+Supabase → **SQL Editor → New query** → вставьте по очереди:
+
+1. [`supabase/migrations/002_attendances.sql`](supabase/migrations/002_attendances.sql) → **RUN**. Добавит:
    - колонку `masters.pin_hash` (scrypt-хэш)
    - таблицу `attendances` (запись по услугам)
    - таблицу `pin_attempts` (аудит + rate-limit)
    - view `masters_public` (без `pin_hash` для anon)
+
+2. [`supabase/migrations/003_master_services_autofill.sql`](supabase/migrations/003_master_services_autofill.sql) → **RUN**. Гарантирует, что при добавлении новой услуги или нового мастера автоматически создаются записи в `master_services` (цена=0, комиссия=50%) для **всех** существующих пар. Без этой миграции новые услуги не будут видны в pro-форме мастеров. Также делает one-time backfill для пар, которые уже разъехались.
+
+> После добавления новой услуги через админку зайдите во вкладку **Мастера → «Цены и комиссии»**, проставьте реальную цену для каждого мастера и сохраните. По-умолчанию цена 0 — мастер увидит услугу, но не сможет её записать без цены.
 
 **5.2. Создать второй Vercel-проект**
 

@@ -175,6 +175,43 @@ select m.id, s.id, 0,
 from masters m cross join services s
 on conflict (master_id, service_id) do nothing;
 
+-- ============ TRIGGERS — keep master_services aligned ============
+-- Whenever a new master or a new service is inserted, fill the cross-product
+-- in master_services so the pro form (register.html) sees it immediately.
+-- Default price=0, commission=50 — admin sets the real price afterwards.
+
+create or replace function ms_fill_for_new_service() returns trigger
+language plpgsql as $$
+begin
+  insert into master_services (master_id, service_id, price, commission_master_pct)
+  select m.id, NEW.id, 0, 50
+  from masters m
+  on conflict (master_id, service_id) do nothing;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_ms_fill_for_new_service on services;
+create trigger trg_ms_fill_for_new_service
+  after insert on services
+  for each row execute function ms_fill_for_new_service();
+
+create or replace function ms_fill_for_new_master() returns trigger
+language plpgsql as $$
+begin
+  insert into master_services (master_id, service_id, price, commission_master_pct)
+  select NEW.id, s.id, 0, 50
+  from services s
+  on conflict (master_id, service_id) do nothing;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_ms_fill_for_new_master on masters;
+create trigger trg_ms_fill_for_new_master
+  after insert on masters
+  for each row execute function ms_fill_for_new_master();
+
 insert into inventory (brand, name) values
   ('Constant Delight', 'Краска для волос'),
   ('Constant Delight', 'Оксид 6%'),
