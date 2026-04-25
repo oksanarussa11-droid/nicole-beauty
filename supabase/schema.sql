@@ -74,6 +74,45 @@ create table if not exists inventory (
   unique (brand, name)
 );
 
+-- PIN per master (bcrypt/scrypt-hashed, server-validated via /api/attendance + /api/verify-pin).
+-- Nullable until set by admin. Never expose to anon — use the masters_public view below.
+alter table masters add column if not exists pin_hash text;
+
+-- Granular per-service attendance records, fed by /api/attendance (pro form).
+create table if not exists attendances (
+  id              bigserial primary key,
+  date            date   not null default current_date,
+  time            time,
+  master_id       bigint not null references masters(id) on delete restrict,
+  service_id      bigint references services(id) on delete set null,
+  service_name    text,
+  price           numeric(12,2) not null,
+  master_pay      numeric(12,2) not null default 0,
+  commission_pct  numeric(5,2),
+  client_name     text,
+  payment_method  text,
+  source          text   not null default 'pro_form',
+  note            text,
+  created_at      timestamptz not null default now()
+);
+create index if not exists attendances_date_idx   on attendances(date);
+create index if not exists attendances_master_idx on attendances(master_id);
+
+-- Audit + rate-limit source for PIN validation.
+create table if not exists pin_attempts (
+  id           bigserial primary key,
+  master_id    bigint references masters(id) on delete set null,
+  ip           text,
+  success      boolean not null,
+  attempted_at timestamptz not null default now()
+);
+create index if not exists pin_attempts_master_ts_idx on pin_attempts(master_id, attempted_at desc);
+
+-- Public view of masters — excludes pin_hash so it never reaches the browser.
+create or replace view masters_public as
+  select id, name, specialty, active, created_at from masters;
+grant select on masters_public to anon, authenticated;
+
 -- ============ ROW LEVEL SECURITY ============
 -- Open policies for the anon role (internal use, small salon).
 -- Tighten later by enabling Supabase Auth and switching to user-scoped policies.
@@ -85,6 +124,16 @@ alter table day_summaries   enable row level security;
 alter table income          enable row level security;
 alter table expenses        enable row level security;
 alter table inventory       enable row level security;
+alter table attendances     enable row level security;
+alter table pin_attempts    enable row level security;
+
+-- attendances: anon can SELECT (dashboards), but WRITES only via service-role (/api/attendance).
+drop policy if exists "anon_select_attendances"   on attendances;
+create policy "anon_select_attendances" on attendances for select to anon using (true);
+drop policy if exists "authed_select_attendances" on attendances;
+create policy "authed_select_attendances" on attendances for select to authenticated using (true);
+
+-- pin_attempts: no anon policies → default deny. Only service-role touches it.
 
 do $$
 declare

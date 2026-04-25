@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#F6F1EA">
+<title>Nicole Salon — Запись услуги</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #F6F1EA;
+    --surface: #FFFFFF;
+    --surface-2: #FBF7F1;
+    --ink: #1A1715;
+    --ink-soft: #4A413B;
+    --muted: #8A7F76;
+    --hairline: #E8DFD3;
+    --hairline-strong: #D9CCB8;
+    --accent: #B08D6A;
+    --accent-deep: #8E6E4F;
+    --positive: #6B8E5A;
+    --negative: #A85A4F;
+    --radius: 2px;
+    --radius-card: 4px;
+    --serif: 'Cormorant Garamond', Georgia, serif;
+    --sans: 'DM Sans', -apple-system, 'Segoe UI', sans-serif;
+    --shadow-1: 0 1px 0 rgba(26,23,21,.04);
+    --shadow-2: 0 12px 32px -16px rgba(60,40,20,.18), 0 2px 6px rgba(60,40,20,.04);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .wrap { max-width: 540px; margin: 0 auto; padding: 24px 20px 80px; }
+
+  .brand-bar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 20px; }
+  .brand-logo {
+    width: 58px; height: 58px; border-radius: 50%;
+    overflow: hidden; flex-shrink: 0; background: #2C2823;
+    box-shadow: 0 6px 18px -8px rgba(60,40,20,.35), inset 0 0 0 1px rgba(201,167,124,.2);
+  }
+  .brand-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .brand-name {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+  .brand-sub {
+    font-size: 9px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    padding: 22px 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-2);
+    position: relative;
+  }
+  .card h2 {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+    margin-bottom: 18px;
+    display: flex; align-items: center; gap: 12px;
+    line-height: 1.15;
+  }
+  .card h2::before {
+    content: "";
+    width: 16px; height: 1px;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .lbl {
+    display: block;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+
+  .fld {
+    width: 100%;
+    padding: 12px 0 10px;
+    border: none;
+    border-bottom: 1px solid var(--hairline-strong);
+    background: transparent;
+    font-size: 16px; /* 16px prevents iOS auto-zoom */
+    font-family: var(--sans);
+    color: var(--ink);
+    border-radius: 0;
+    min-height: 44px;
+    transition: border-color .2s;
+  }
+  .fld:focus { outline: none; border-bottom-color: var(--accent); }
+  select.fld {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 12px) 50%, calc(100% - 7px) 50%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 24px;
+  }
+
+  .row { display: flex; flex-direction: column; gap: 16px; margin-bottom: 14px; }
+
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 14px 18px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: var(--sans);
+    font-weight: 500;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    transition: all .2s cubic-bezier(.2,.6,.2,1);
+    min-height: 48px;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-outline {
+    background: transparent;
+    color: var(--accent-deep);
+    border-color: var(--accent);
+  }
+  .btn-outline:hover { background: var(--accent); color: #fff; }
+
+  .pay-methods { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .pay-methods label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 8px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    transition: all .15s;
+    min-height: 48px;
+    background: var(--surface);
+  }
+  .pay-methods input[type="radio"] { display: none; }
+  .pay-methods input[type="radio"]:checked + label {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  .pro-greeting {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--surface-2);
+    border-radius: var(--radius-card);
+    margin-bottom: 16px;
+    border: 1px solid var(--hairline);
+  }
+  .pro-greeting .who {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .pro-greeting .who small {
+    display: block;
+    font-family: var(--sans);
+    font-style: normal;
+    font-size: 9px;
+    letter-spacing: .24em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .pro-greeting button {
+    background: transparent;
+    border: 0;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 8px;
+    font-family: var(--sans);
+  }
+  .pro-greeting button:hover { color: var(--negative); }
+
+  .att-list { padding: 0; margin: 0; list-style: none; }
+  .att-list li {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--hairline);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: baseline;
+  }
+  .att-list li:last-child { border-bottom: 0; }
+  .att-time {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .08em;
+    font-variant-numeric: tabular-nums;
+  }
+  .att-service {
+    font-family: var(--serif);
+    font-size: 17px;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .att-service small {
+    display: block;
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .att-amt {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-size: 14px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .att-amt small {
+    display: block;
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 400;
+    letter-spacing: .04em;
+  }
+  .att-empty {
+    text-align: center;
+    padding: 30px 10px;
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .total-row {
+    display: flex; justify-content: space-between;
+    padding: 14px 0 4px;
+    border-top: 1px solid var(--hairline-strong);
+    margin-top: 6px;
+    font-size: 13px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .total-row strong { font-weight: 500; }
+
+  .msg {
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    font-size: 13px;
+    display: none;
+  }
+  .msg.show { display: block; }
+  .msg.err {
+    background: color-mix(in srgb, var(--negative) 10%, var(--surface));
+    color: var(--negative);
+    border: 1px solid color-mix(in srgb, var(--negative) 30%, transparent);
+  }
+  .msg.ok {
+    background: color-mix(in srgb, var(--positive) 10%, var(--surface));
+    color: var(--positive);
+    border: 1px solid color-mix(in srgb, var(--positive) 30%, transparent);
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 20px; right: 20px;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 14px 18px;
+    border-radius: var(--radius);
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: .04em;
+    border-left: 2px solid var(--accent);
+    box-shadow: var(--shadow-2);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all .3s;
+    z-index: 999;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.err { border-left-color: var(--negative); }
+
+  .back-link {
+    display: inline-block;
+    margin-top: 20px;
+    font-size: 10px;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 10px 4px;
+  }
+  .back-link:hover { color: var(--ink); }
+
+  input[type="number"] { -moz-appearance: textfield; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  @media (max-width: 400px) {
+    .wrap { padding: 18px 14px 80px; }
+    .brand-name { font-size: 19px; letter-spacing: .24em; }
+    .brand-logo { width: 50px; height: 50px; }
+    .card { padding: 18px 16px; }
+    .card h2 { font-size: 19px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="brand-bar">
+    <div class="brand-logo">
+      <img src="assets/nicole-logo.png" alt="Nicole Salon">
+    </div>
+    <div style="flex:1;text-align:right;">
+      <div class="brand-name">Nicole Salon</div>
+      <div class="brand-sub">запись услуги</div>
+    </div>
+  </div>
+
+  <div id="msg" class="msg" role="alert"></div>
+
+  <!-- ═══ LOGIN CARD ═══ -->
+  <div class="card" id="loginCard">
+    <h2>Вход</h2>
+    <div class="row">
+      <div>
+        <label class="lbl" for="loginMaster">Мастер</label>
+        <select class="fld" id="loginMaster">
+          <option value="">—</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="loginPin">PIN</label>
+        <input class="fld" id="loginPin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="••••">
+      </div>
+    </div>
+    <button class="btn" id="loginBtn" onclick="login()">Войти</button>
+  </div>
+
+  <!-- ═══ ENTRY CARD ═══ -->
+  <div class="card" id="entryCard" style="display:none;">
+    <div class="pro-greeting">
+      <div class="who">
+        <small>Мастер</small>
+        <span id="proName">—</span>
+      </div>
+      <button type="button" onclick="logout()">Выход</button>
+    </div>
+
+    <h2>Новая запись</h2>
+    <div class="row">
+      <div>
+        <label class="lbl" for="entryService">Услуга</label>
+        <select class="fld" id="entryService" onchange="onServiceChange()">
+          <option value="">—</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="entryPrice">Цена, ₽</label>
+        <input class="fld" id="entryPrice" type="number" inputmode="decimal" step="50" min="0">
+      </div>
+      <div>
+        <label class="lbl" for="entryClient">Клиент (опционально)</label>
+        <input class="fld" id="entryClient" type="text" maxlength="200" placeholder="Имя">
+      </div>
+      <div>
+        <label class="lbl">Способ оплаты</label>
+        <div class="pay-methods">
+          <input type="radio" name="pay" id="payCash" value="Наличные" checked>
+          <label for="payCash">Наличные</label>
+          <input type="radio" name="pay" id="payCard" value="Карта">
+          <label for="payCard">Карта</label>
+          <input type="radio" name="pay" id="payTransfer" value="Перевод">
+          <label for="payTransfer">Перевод</label>
+        </div>
+      </div>
+    </div>
+    <button class="btn" id="saveBtn" onclick="saveAttendance()">Записать</button>
+  </div>
+
+  <!-- ═══ TODAY'S LIST ═══ -->
+  <div class="card" id="todayCard" style="display:none;">
+    <h2>Сегодня</h2>
+    <ul class="att-list" id="todayList"></ul>
+    <div class="total-row" id="todayTotal" style="display:none;">
+      <span>Итого</span><strong id="todayTotalVal">0 ₽</strong>
+    </div>
+  </div>
+
+  <a class="back-link" href="/">← Панель администратора</a>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./config.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════
+//  Nicole Salon — /register (professional self-service entry)
+// ════════════════════════════════════════════════════════════
+const SESSION_KEY = 'nicole.pro';
+const fmt = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0)) + ' ₽';
+const today = () => new Date().toISOString().split('T')[0];
+
+let sb = null;
+let session = null;           // { masterId, pin, name } from sessionStorage
+let state = {
+  masters: [],
+  services: [],                // all services
+  masterServices: [],          // [{ service_id, price, commission_master_pct, service_name }]
+  todayAttendances: [],
+};
+
+// ─── DOM helpers ─────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const setText = (id, t) => { const e = $(id); if (e) e.textContent = t; };
+
+function toast(msg, isErr) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.toggle('err', !!isErr);
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function setMsg(text, kind) {
+  const el = $('msg');
+  el.textContent = text || '';
+  el.className = 'msg' + (kind ? ' ' + kind : '') + (text ? ' show' : '');
+}
+
+// ─── Supabase (anon — reads only) ────────────────────────────
+function initSupabase() {
+  if (typeof SUPABASE_URL !== 'string' || typeof SUPABASE_ANON_KEY !== 'string') {
+    setMsg('Ошибка: config.js отсутствует', 'err');
+    return false;
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return true;
+}
+
+async function loadMasters() {
+  const { data, error } = await sb.from('masters_public').select('*').order('name');
+  if (error) throw error;
+  state.masters = data || [];
+  const sel = $('loginMaster');
+  sel.innerHTML = '<option value="">—</option>' +
+    state.masters.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+}
+
+async function loadServicesForMaster(masterId) {
+  const { data, error } = await sb
+    .from('master_services')
+    .select('service_id, price, commission_master_pct, services!inner(name)')
+    .eq('master_id', masterId);
+  if (error) throw error;
+  state.masterServices = (data || []).map(r => ({
+    service_id: r.service_id,
+    price: Number(r.price) || 0,
+    commission_master_pct: Number(r.commission_master_pct) || 0,
+    service_name: r.services?.name || ('#' + r.service_id),
+  })).sort((a, b) => a.service_name.localeCompare(b.service_name, 'ru'));
+
+  const sel = $('entryService');
+  sel.innerHTML = '<option value="">—</option>' +
+    state.masterServices.map(ms =>
+      `<option value="${ms.service_id}" data-price="${ms.price}">${escapeHtml(ms.service_name)}</option>`
+    ).join('');
+}
+
+async function loadTodayAttendances() {
+  if (!session) return;
+  const { data, error } = await sb
+    .from('attendances')
+    .select('id, time, service_name, price, master_pay, payment_method')
+    .eq('master_id', session.masterId)
+    .eq('date', today())
+    .order('time', { ascending: false });
+  if (error) throw error;
+  state.todayAttendances = data || [];
+  renderToday();
+}
+
+function renderToday() {
+  const list = $('todayList');
+  if (!state.todayAttendances.length) {
+    list.innerHTML = '<li class="att-empty">Пока записей нет</li>';
+    $('todayTotal').style.display = 'none';
+    return;
+  }
+  list.innerHTML = state.todayAttendances.map(a => {
+    const time = (a.time || '').slice(0, 5);
+    return `<li>
+      <div class="att-time">${time}</div>
+      <div class="att-service">${escapeHtml(a.service_name || '—')}<small>${escapeHtml(a.payment_method || '')}</small></div>
+      <div class="att-amt">${fmt(a.price)}<small>мне: ${fmt(a.master_pay)}</small></div>
+    </li>`;
+  }).join('');
+  const totalGross = state.todayAttendances.reduce((s, a) => s + Number(a.price), 0);
+  const totalPay = state.todayAttendances.reduce((s, a) => s + Number(a.master_pay), 0);
+  setText('todayTotalVal', `${fmt(totalGross)}  ·  моё: ${fmt(totalPay)}`);
+  $('todayTotal').style.display = 'flex';
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ─── Session (client-side) ───────────────────────────────────
+function restoreSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function saveSession(s) {
+  session = s;
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
+}
+
+function logout() {
+  session = null;
+  sessionStorage.removeItem(SESSION_KEY);
+  $('loginPin').value = '';
+  showLoginUI();
+}
+
+function showLoginUI() {
+  $('loginCard').style.display = '';
+  $('entryCard').style.display = 'none';
+  $('todayCard').style.display = 'none';
+  setMsg('');
+}
+
+async function showEntryUI() {
+  $('loginCard').style.display = 'none';
+  $('entryCard').style.display = '';
+  $('todayCard').style.display = '';
+  setText('proName', session.name || '—');
+  setMsg('');
+  try {
+    await loadServicesForMaster(session.masterId);
+    await loadTodayAttendances();
+  } catch (e) {
+    setMsg('Ошибка загрузки: ' + (e.message || e), 'err');
+  }
+}
+
+// ─── Login ───────────────────────────────────────────────────
+async function login() {
+  const masterId = parseInt($('loginMaster').value);
+  const pin = $('loginPin').value.trim();
+  if (!masterId) { setMsg('Выберите мастера', 'err'); return; }
+  if (!/^\d{4,8}$/.test(pin)) { setMsg('PIN — 4–8 цифр', 'err'); return; }
+
+  const btn = $('loginBtn');
+  btn.disabled = true; btn.textContent = 'Проверка…';
+  try {
+    const r = await fetch('/api/verify-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ master_id: masterId, pin }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    saveSession({ masterId, pin, name: data.master?.name || '' });
+    await showEntryUI();
+  } catch (e) {
+    setMsg(e.message || String(e), 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Войти';
+  }
+}
+
+// ─── Service → price auto-fill ──────────────────────────────
+function onServiceChange() {
+  const sel = $('entryService');
+  const opt = sel.options[sel.selectedIndex];
+  const price = opt ? Number(opt.dataset.price) : 0;
+  $('entryPrice').value = price > 0 ? price : '';
+}
+
+// ─── Save attendance ─────────────────────────────────────────
+async function saveAttendance() {
+  if (!session) { logout(); return; }
+  const serviceId = parseInt($('entryService').value);
+  const price = Number($('entryPrice').value);
+  const clientName = $('entryClient').value.trim();
+  const payMethod = document.querySelector('input[name="pay"]:checked')?.value || null;
+
+  if (!serviceId) { toast('Выберите услугу', true); return; }
+  if (!(price > 0)) { toast('Укажите цену', true); return; }
+
+  const btn = $('saveBtn');
+  btn.disabled = true; btn.textContent = 'Сохраняем…';
+  try {
+    const r = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        master_id: session.masterId,
+        pin: session.pin,
+        service_id: serviceId,
+        price,
+        client_name: clientName || null,
+        payment_method: payMethod,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      // If auth stopped working (PIN changed server-side, session stale), force relogin.
+      if (r.status === 401 || r.status === 403) {
+        toast('Сессия недействительна. Войдите заново.', true);
+        logout();
+        return;
+      }
+      throw new Error(data.error || ('HTTP ' + r.status));
+    }
+    toast(`Записано. Моё: ${fmt(data.master_pay)}`);
+    // Reset transaction fields only; keep session & service dropdown reset for next entry
+    $('entryService').value = '';
+    $('entryPrice').value = '';
+    $('entryClient').value = '';
+    await loadTodayAttendances();
+  } catch (e) {
+    toast(e.message || String(e), true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Записать';
+  }
+}
+
+// ─── Init ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!initSupabase()) return;
+  try {
+    await loadMasters();
+  } catch (e) {
+    setMsg('Ошибка загрузки мастеров: ' + (e.message || e), 'err');
+    return;
+  }
+  session = restoreSession();
+  if (session && session.masterId && session.pin) {
+    await showEntryUI();
+  } else {
+    showLoginUI();
+  }
+
+  // Enter key in PIN input triggers login
+  $('loginPin').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+});
+</script>
+</body>
+</html>

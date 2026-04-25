@@ -1051,6 +1051,17 @@
     </table>
   </div>
 
+  <div class="card">
+    <h2>Журнал услуг</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px;letter-spacing:.05em;">Записи, внесённые мастерами через <a href="/register" style="color:var(--accent-deep);">/register</a>.</p>
+    <table>
+      <thead>
+        <tr><th>Дата</th><th>Мастер</th><th>Услуга</th><th>Цена</th><th>Мастеру</th><th>Клиент</th><th>Оплата</th></tr>
+      </thead>
+      <tbody id="attTable"></tbody>
+    </table>
+  </div>
+
   <details class="ocr-box">
     <summary>Распознать фото отчёта</summary>
     <div class="ocr-body">
@@ -1183,7 +1194,7 @@
     </div>
     <button class="btn btn-primary" onclick="addMaster()">Добавить мастера</button>
     <table style="margin-top:14px;">
-      <thead><tr><th>Имя</th><th>Специализация</th><th></th></tr></thead>
+      <thead><tr><th>Имя</th><th>Специализация</th><th>PIN</th><th></th></tr></thead>
       <tbody id="mastersTable"></tbody>
     </table>
   </div>
@@ -1257,6 +1268,15 @@
   </div>
 
   <div class="card">
+    <h2>Услуги за период</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px;letter-spacing:.05em;">Агрегация записей мастеров через <a href="/register" style="color:var(--accent-deep);">/register</a> по услугам.</p>
+    <table>
+      <thead><tr><th>Услуга</th><th>Кол-во</th><th>Выручка</th><th>Мастеру</th><th>Салону</th><th>Доля</th></tr></thead>
+      <tbody id="repServiceTable"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
     <h2>Журнал за период</h2>
     <table>
       <thead><tr><th>Дата</th><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Салону</th></tr></thead>
@@ -1281,6 +1301,7 @@ const state = {
   services: [],
   masterServices: [],
   daySummaries: [],
+  attendances: [],
   income: [],
   expenses: [],
   inventory: [],
@@ -1343,7 +1364,7 @@ async function initSupabase() {
   }
   try {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { error } = await sb.from('masters').select('id').limit(1);
+    const { error } = await sb.from('masters_public').select('id').limit(1);
     if (error) throw error;
     setStatus(true, 'Подключено');
     return true;
@@ -1358,20 +1379,22 @@ async function initSupabase() {
 async function loadAll() {
   if (!sb) return;
   try {
-    const [ms, sv, mss, ds, inc, exp, inv] = await Promise.all([
-      sb.from('masters').select('*').order('name'),
+    const [ms, sv, mss, ds, att, inc, exp, inv] = await Promise.all([
+      sb.from('masters_public').select('*').order('name'),
       sb.from('services').select('*').order('name'),
       sb.from('master_services').select('*'),
       sb.from('day_summaries').select('*').order('date', { ascending: false }),
+      sb.from('attendances').select('*').order('date', { ascending: false }).order('time', { ascending: false }),
       sb.from('income').select('*').order('date', { ascending: false }),
       sb.from('expenses').select('*').order('date', { ascending: false }),
       sb.from('inventory').select('*').order('brand').order('name'),
     ]);
-    for (const r of [ms, sv, mss, ds, inc, exp, inv]) if (r.error) throw r.error;
+    for (const r of [ms, sv, mss, ds, att, inc, exp, inv]) if (r.error) throw r.error;
     state.masters        = ms.data  || [];
     state.services       = sv.data  || [];
     state.masterServices = mss.data || [];
     state.daySummaries   = ds.data  || [];
+    state.attendances    = att.data || [];
     state.income         = inc.data || [];
     state.expenses       = exp.data || [];
     state.inventory      = inv.data || [];
@@ -1380,6 +1403,43 @@ async function loadAll() {
     console.error(e);
     toast('Ошибка загрузки: ' + (e.message || e), true);
   }
+}
+
+// ── Unified per-(date, master) totals: dedup day_summaries + attendances via max-rule.
+// Avoids double-counting when a day has both OCR-aggregated and per-service records.
+function unifiedTotals(filterFn) {
+  const dsMap = new Map();   // key `${date}|${master_id}` → {revenue, master_pay}
+  const attMap = new Map();
+  for (const r of state.daySummaries) {
+    if (!filterFn(r.date)) continue;
+    const k = `${r.date}|${r.master_id}`;
+    const cur = dsMap.get(k) || { revenue: 0, master_pay: 0 };
+    cur.revenue += Number(r.revenue);
+    cur.master_pay += Number(r.master_pay);
+    dsMap.set(k, cur);
+  }
+  for (const r of state.attendances) {
+    if (!filterFn(r.date)) continue;
+    const k = `${r.date}|${r.master_id}`;
+    const cur = attMap.get(k) || { revenue: 0, master_pay: 0 };
+    cur.revenue += Number(r.price);
+    cur.master_pay += Number(r.master_pay);
+    attMap.set(k, cur);
+  }
+  const out = [];
+  const keys = new Set([...dsMap.keys(), ...attMap.keys()]);
+  for (const k of keys) {
+    const [date, midStr] = k.split('|');
+    const ds = dsMap.get(k) || { revenue: 0, master_pay: 0 };
+    const att = attMap.get(k) || { revenue: 0, master_pay: 0 };
+    out.push({
+      date,
+      master_id: Number(midStr),
+      revenue: Math.max(ds.revenue, att.revenue),
+      master_pay: Math.max(ds.master_pay, att.master_pay),
+    });
+  }
+  return out;
 }
 
 // ===================== NAVIGATION =====================
@@ -1431,35 +1491,58 @@ function renderDayMasterGrid() {
 
 function renderOperational() {
   const month = val('opMonth');
-  const filtered = state.daySummaries.filter(d => matchMonth(d.date, month));
+  const pick = d => matchMonth(d, month);
 
-  const totalRev    = filtered.reduce((s, d) => s + Number(d.revenue),    0);
-  const totalMaster = filtered.reduce((s, d) => s + Number(d.master_pay), 0);
+  // Unified per-(date,master) totals for stats + monthly aggregation.
+  const unified = unifiedTotals(pick);
+  const totalRev    = unified.reduce((s, d) => s + d.revenue,    0);
+  const totalMaster = unified.reduce((s, d) => s + d.master_pay, 0);
   const totalSalon  = totalRev - totalMaster;
+  const distinctDays = new Set(unified.map(u => u.date)).size;
 
   document.getElementById('opStats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Дней</div><div class="stat-value">${filtered.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Дней</div><div class="stat-value">${distinctDays}</div></div>
     <div class="stat-card green"><div class="stat-label">Выручка</div><div class="stat-value">${fmt(totalRev)}</div></div>
     <div class="stat-card orange"><div class="stat-label">Мастерам</div><div class="stat-value">${fmt(totalMaster)}</div></div>
     <div class="stat-card"><div class="stat-label">Салону</div><div class="stat-value">${fmt(totalSalon)}</div></div>
   `;
 
+  // Legacy "Журнал по дням" shows only day_summaries rows (with delete button tied to day_summaries.id).
+  const filteredDS = state.daySummaries.filter(d => pick(d.date));
   const tb = document.getElementById('dayTable');
-  tb.innerHTML = filtered.length === 0
-    ? '<tr><td colspan="6" class="empty-msg">Нет данных</td></tr>'
-    : filtered.map(d => `<tr>
+  tb.innerHTML = filteredDS.length === 0
+    ? '<tr><td colspan="6" class="empty-msg">Нет записей</td></tr>'
+    : filteredDS.map(d => `<tr>
         <td>${fmtDate(d.date)}</td><td>${masterName(d.master_id)}</td>
         <td>${fmt(d.revenue)}</td><td>${fmt(d.master_pay)}</td><td>${fmt(d.revenue - d.master_pay)}</td>
         <td><button class="btn btn-danger btn-sm" onclick="delDay(${d.id})">X</button></td>
       </tr>`).join('');
 
+  // Attendance log (per-service entries from /register) within the month filter.
+  const filteredAtt = state.attendances.filter(a => pick(a.date));
+  const att = document.getElementById('attTable');
+  if (att) {
+    att.innerHTML = filteredAtt.length === 0
+      ? '<tr><td colspan="7" class="empty-msg">Нет записей</td></tr>'
+      : filteredAtt.map(a => `<tr>
+          <td>${fmtDate(a.date)}${a.time ? ' <small style="color:var(--muted);">'+String(a.time).slice(0,5)+'</small>' : ''}</td>
+          <td>${masterName(a.master_id)}</td>
+          <td>${escapeText(a.service_name || (a.service_id ? serviceName(a.service_id) : '—'))}</td>
+          <td>${fmt(a.price)}</td>
+          <td>${fmt(a.master_pay)}</td>
+          <td>${a.client_name ? escapeText(a.client_name) : '<span style="color:var(--muted);">—</span>'}</td>
+          <td><span class="badge" style="border-color:var(--hairline-strong);color:var(--muted);">${escapeText(a.payment_method || '')}</span></td>
+        </tr>`).join('');
+  }
+
+  // Monthly aggregation uses unified totals (so OCR days + pro_form days are both counted).
   const masterMap = {};
-  filtered.forEach(d => {
+  unified.forEach(d => {
     const name = masterName(d.master_id);
-    if (!masterMap[name]) masterMap[name] = { days: 0, revenue: 0, payout: 0 };
-    masterMap[name].days++;
-    masterMap[name].revenue += Number(d.revenue);
-    masterMap[name].payout  += Number(d.master_pay);
+    if (!masterMap[name]) masterMap[name] = { days: new Set(), revenue: 0, payout: 0 };
+    masterMap[name].days.add(d.date);
+    masterMap[name].revenue += d.revenue;
+    masterMap[name].payout  += d.master_pay;
   });
   const masters = Object.entries(masterMap);
   const mr = document.getElementById('monthReport');
@@ -1467,16 +1550,23 @@ function renderOperational() {
     mr.innerHTML = '<tr><td colspan="5" class="empty-msg">Нет данных</td></tr>';
   } else {
     mr.innerHTML = masters.map(([name, m]) => `<tr>
-      <td>${name}</td><td style="text-align:center">${m.days}</td>
+      <td>${name}</td><td style="text-align:center">${m.days.size}</td>
       <td>${fmt(m.revenue)}</td><td>${fmt(m.payout)}</td><td>${fmt(m.revenue - m.payout)}</td>
     </tr>`).join('') + `<tr style="font-weight:bold;background:#f8f4f7">
       <td>ИТОГО</td>
-      <td style="text-align:center">${masters.reduce((s,[,m])=>s+m.days,0)}</td>
+      <td style="text-align:center">${masters.reduce((s,[,m])=>s+m.days.size,0)}</td>
       <td>${fmt(masters.reduce((s,[,m])=>s+m.revenue,0))}</td>
       <td>${fmt(masters.reduce((s,[,m])=>s+m.payout,0))}</td>
       <td>${fmt(masters.reduce((s,[,m])=>s+m.revenue-m.payout,0))}</td>
     </tr>`;
   }
+}
+
+// Safe text rendering for potential user input (client_name, note). Returns a string
+// suitable to drop into an innerHTML template that's already composed — we escape here
+// explicitly since some cells use raw template interpolation.
+function escapeText(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 function renderFinance() {
@@ -1532,9 +1622,10 @@ function renderInventory() {
 
 function renderMasters() {
   document.getElementById('mastersTable').innerHTML = state.masters.length === 0
-    ? '<tr><td colspan="3" class="empty-msg">Нет мастеров</td></tr>'
+    ? '<tr><td colspan="4" class="empty-msg">Нет мастеров</td></tr>'
     : state.masters.map(m => `<tr>
-        <td>${m.name}</td><td>${m.specialty||''}</td>
+        <td>${escapeText(m.name)}</td><td>${escapeText(m.specialty||'')}</td>
+        <td><button class="btn btn-sm" onclick="setMasterPin(${m.id}, '${escapeText(m.name).replace(/'/g,"&#39;")}')">PIN</button></td>
         <td><button class="btn btn-danger btn-sm" onclick="delMaster(${m.id})">X</button></td>
       </tr>`).join('');
 
@@ -1569,12 +1660,14 @@ function renderMasters() {
 function renderReports() {
   const from = val('repFrom');
   const to   = val('repTo');
+  const pick = d => inRange(d, from, to);
 
-  const dayF = state.daySummaries.filter(d => inRange(d.date, from, to));
-  const incF = state.income      .filter(i => inRange(i.date, from, to));
-  const expF = state.expenses    .filter(e => inRange(e.date, from, to));
+  const unified = unifiedTotals(pick);
+  const attF = state.attendances.filter(a => pick(a.date));
+  const incF = state.income      .filter(i => pick(i.date));
+  const expF = state.expenses    .filter(e => pick(e.date));
 
-  const totalRev = dayF.reduce((s, d) => s + Number(d.revenue), 0);
+  const totalRev = unified.reduce((s, d) => s + d.revenue, 0);
   const totalInc = incF.reduce((s, i) => s + Number(i.amount),  0);
   const totalExp = expF.reduce((s, e) => s + Number(e.amount),  0);
 
@@ -1586,11 +1679,11 @@ function renderReports() {
   `;
 
   const masterMap = {};
-  dayF.forEach(d => {
+  unified.forEach(d => {
     const name = masterName(d.master_id);
     if (!masterMap[name]) masterMap[name] = { revenue: 0, payout: 0 };
-    masterMap[name].revenue += Number(d.revenue);
-    masterMap[name].payout  += Number(d.master_pay);
+    masterMap[name].revenue += d.revenue;
+    masterMap[name].payout  += d.master_pay;
   });
   const mEntries = Object.entries(masterMap);
   const maxVal = Math.max(1, ...mEntries.map(([,m]) => m.revenue));
@@ -1647,12 +1740,49 @@ function renderReports() {
         <td>ИТОГО</td><td>${fmt(totalExp)}</td><td>100%</td>
       </tr>`;
 
-  document.getElementById('repDayTable').innerHTML = dayF.length === 0
+  // Unified per-day, per-master rows for the journal table.
+  const sortedUnified = [...unified].sort((a, b) => b.date.localeCompare(a.date) || masterName(a.master_id).localeCompare(masterName(b.master_id), 'ru'));
+  document.getElementById('repDayTable').innerHTML = sortedUnified.length === 0
     ? '<tr><td colspan="5" class="empty-msg">Нет данных</td></tr>'
-    : dayF.map(d => `<tr>
+    : sortedUnified.map(d => `<tr>
         <td>${fmtDate(d.date)}</td><td>${masterName(d.master_id)}</td>
         <td>${fmt(d.revenue)}</td><td>${fmt(d.master_pay)}</td><td>${fmt(d.revenue - d.master_pay)}</td>
       </tr>`).join('');
+
+  // Per-service breakdown from attendances in the range.
+  const svcMap = {};
+  attF.forEach(a => {
+    const name = a.service_name || (a.service_id ? serviceName(a.service_id) : '—');
+    if (!svcMap[name]) svcMap[name] = { count: 0, gross: 0, master: 0 };
+    svcMap[name].count += 1;
+    svcMap[name].gross += Number(a.price);
+    svcMap[name].master += Number(a.master_pay);
+  });
+  const svcEntries = Object.entries(svcMap).sort((a, b) => b[1].gross - a[1].gross);
+  const svcTotalGross = svcEntries.reduce((s, [,v]) => s + v.gross, 0);
+  const svcTotalMaster = svcEntries.reduce((s, [,v]) => s + v.master, 0);
+  const svcTotalSalon = svcTotalGross - svcTotalMaster;
+  const svcTotalCount = svcEntries.reduce((s, [,v]) => s + v.count, 0);
+  const svcTbody = document.getElementById('repServiceTable');
+  if (svcTbody) {
+    svcTbody.innerHTML = svcEntries.length === 0
+      ? '<tr><td colspan="6" class="empty-msg">Нет записей. Данные появятся, когда мастера начнут пользоваться /register.</td></tr>'
+      : svcEntries.map(([name, v]) => `<tr>
+          <td>${escapeText(name)}</td>
+          <td style="text-align:center">${v.count}</td>
+          <td>${fmt(v.gross)}</td>
+          <td>${fmt(v.master)}</td>
+          <td>${fmt(v.gross - v.master)}</td>
+          <td>${svcTotalGross > 0 ? Math.round(v.gross/svcTotalGross*100) : 0}%</td>
+        </tr>`).join('') + `<tr style="font-weight:bold;background:#f8f4f7">
+          <td>ИТОГО</td>
+          <td style="text-align:center">${svcTotalCount}</td>
+          <td>${fmt(svcTotalGross)}</td>
+          <td>${fmt(svcTotalMaster)}</td>
+          <td>${fmt(svcTotalSalon)}</td>
+          <td>100%</td>
+        </tr>`;
+  }
 }
 
 // ===================== REPORT PRESETS / EXPORT =====================
@@ -1685,6 +1815,7 @@ function csvEscape(v) {
 function exportReportCSV() {
   const from = val('repFrom'), to = val('repTo');
   const dayF = state.daySummaries.filter(d => inRange(d.date, from, to));
+  const attF = state.attendances .filter(a => inRange(a.date, from, to));
   const incF = state.income      .filter(i => inRange(i.date, from, to));
   const expF = state.expenses    .filter(e => inRange(e.date, from, to));
 
@@ -1703,6 +1834,10 @@ function exportReportCSV() {
   lines.push(['=== Расходы ==='].join(';'));
   lines.push(['Дата','Категория','Описание','Сумма','Поставщик','Статус'].map(csvEscape).join(';'));
   expF.forEach(e => lines.push([e.date, e.category, e.description, e.amount, e.supplier, e.status].map(csvEscape).join(';')));
+  lines.push('');
+  lines.push(['=== Журнал услуг (attendances) ==='].join(';'));
+  lines.push(['Дата','Время','Мастер','Услуга','Цена','Мастеру','Комиссия %','Клиент','Оплата','Источник'].map(csvEscape).join(';'));
+  attF.forEach(a => lines.push([a.date, a.time || '', masterName(a.master_id), a.service_name || '', a.price, a.master_pay, a.commission_pct, a.client_name || '', a.payment_method || '', a.source || ''].map(csvEscape).join(';')));
 
   const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
@@ -1814,6 +1949,46 @@ async function delExp(id)     { if (!confirmDel()) return; const { error } = awa
 async function delInv(id)     { if (!confirmDel('Удалить этот продукт?')) return; const { error } = await sb.from('inventory').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 async function delMaster(id)  { if (!confirmDel('Удалить мастера? Его записи останутся, но ссылки могут сломаться.')) return; const { error } = await sb.from('masters').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 async function delService(id) { if (!confirmDel('Удалить услугу?')) return; const { error } = await sb.from('services').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
+
+// ── Admin PIN management ────────────────────────────────────
+// Admin password is prompted once per tab session, then cached in sessionStorage.
+// If the server rejects it (401), we clear the cache and prompt again.
+function getAdminPassword(force) {
+  const KEY = 'nicole.adminPw';
+  if (force) sessionStorage.removeItem(KEY);
+  let pw = sessionStorage.getItem(KEY);
+  if (!pw) {
+    pw = prompt('Пароль администратора (нужен один раз за сессию):');
+    if (pw) sessionStorage.setItem(KEY, pw);
+  }
+  return pw;
+}
+
+async function setMasterPin(masterId, masterName) {
+  const newPin = prompt(`Новый PIN для «${masterName}» (4–8 цифр):`);
+  if (newPin == null) return;
+  if (!/^\d{4,8}$/.test(newPin)) { toast('PIN должен быть 4–8 цифр', true); return; }
+  const adminPw = getAdminPassword(false);
+  if (!adminPw) return;
+
+  try {
+    const r = await fetch('/api/set-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ master_id: masterId, new_pin: newPin, admin_password: adminPw }),
+    });
+    const data = await r.json();
+    if (r.status === 401) {
+      sessionStorage.removeItem('nicole.adminPw');
+      toast('Неверный пароль администратора', true);
+      return;
+    }
+    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    toast(`PIN для ${masterName} обновлён`);
+  } catch (e) {
+    toast('Ошибка: ' + (e.message || e), true);
+  }
+}
 
 // ===================== OCR (Claude Vision via /api/parse-report) =====================
 let ocrLastResult = null;
