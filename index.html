@@ -732,6 +732,64 @@
     font-size: 13px;
   }
 
+  /* ── ADMIN GATE ───────────────────────────────────────────
+     Login card shown on page load until a valid PIN unlocks the dashboard. */
+  .admin-gate {
+    max-width: 440px;
+    margin: 80px auto 40px;
+    padding: 0 20px;
+    animation: gateFadeIn .5s cubic-bezier(.2,.6,.2,1) both;
+  }
+  @keyframes gateFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .gate-card { padding: 40px 36px 32px; }
+  .gate-card h2 { font-size: 26px; margin-bottom: 8px; }
+  .gate-desc {
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 6px;
+    padding-left: 32px;
+  }
+  .gate-input {
+    width: 100%;
+    padding: 14px 0 12px;
+    border: none;
+    border-bottom: 1px solid var(--hairline-strong);
+    background: transparent;
+    font-size: 24px;
+    font-family: var(--serif);
+    font-style: italic;
+    letter-spacing: .35em;
+    color: var(--ink);
+    text-align: center;
+    border-radius: 0;
+    transition: border-color .25s;
+  }
+  .gate-input:focus { outline: none; border-bottom-color: var(--accent); }
+  .gate-input::placeholder { letter-spacing: .4em; color: var(--muted); opacity: .5; }
+  .gate-msg {
+    min-height: 18px;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--negative);
+    font-family: var(--serif);
+    font-style: italic;
+    text-align: center;
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .gate-msg.show { opacity: 1; }
+  .gate-btn { width: 100%; margin-top: 10px; }
+  @media (max-width: 480px) {
+    .admin-gate { margin: 40px auto 24px; padding: 0 16px; }
+    .gate-card { padding: 28px 22px 22px; }
+    .gate-card h2 { font-size: 22px; }
+    .gate-input { font-size: 20px; letter-spacing: .28em; }
+  }
+
   /* ── DAY MASTER GRID (interior cards) ────────────────────── */
   .master-grid > div {
     background: var(--surface-2) !important;
@@ -996,7 +1054,22 @@
   </div>
 </div>
 
-<div class="tabs">
+<!-- ═══ ADMIN GATE — shown until valid PIN entered ═══ -->
+<div class="admin-gate" id="adminGate">
+  <div class="card gate-card">
+    <h2>Вход в панель</h2>
+    <p class="gate-desc">Введите PIN администратора</p>
+    <div class="form-row" style="margin-top:14px;">
+      <div class="form-group">
+        <input type="password" id="gatePin" class="gate-input" inputmode="text" autocomplete="current-password" autofocus maxlength="64" placeholder="••••">
+      </div>
+    </div>
+    <div id="gateMsg" class="gate-msg"></div>
+    <button class="btn btn-primary gate-btn" id="gateBtn" onclick="unlockAdmin()">Войти</button>
+  </div>
+</div>
+
+<div class="tabs" id="mainTabs" style="display:none;">
   <div class="tab active" data-section="operational">Записи</div>
   <div class="tab" data-section="finance">Финансы</div>
   <div class="tab" data-section="inventory">Продукция</div>
@@ -1004,7 +1077,7 @@
   <div class="tab" data-section="reports">Отчёты</div>
 </div>
 
-<div class="content">
+<div class="content" id="mainContent" style="display:none;">
 
 <!-- ==================== OPERATIONAL ==================== -->
 <div class="section active" id="operational">
@@ -2106,7 +2179,51 @@ function cancelOCR() {
 }
 
 // ===================== INIT =====================
-document.addEventListener('DOMContentLoaded', async () => {
+// ── Admin gate ──────────────────────────────────────────
+const ADMIN_PW_KEY = 'nicole.adminPw';
+
+function isAdminUnlocked() {
+  return !!sessionStorage.getItem(ADMIN_PW_KEY);
+}
+
+function revealDashboard() {
+  document.getElementById('adminGate').style.display = 'none';
+  document.getElementById('mainTabs').style.display = '';
+  document.getElementById('mainContent').style.display = '';
+  const dot = document.getElementById('statusDot');
+  if (dot) dot.style.display = '';
+}
+
+async function unlockAdmin() {
+  const input = document.getElementById('gatePin');
+  const msg   = document.getElementById('gateMsg');
+  const btn   = document.getElementById('gateBtn');
+  const pin   = (input.value || '').trim();
+  if (!pin) return;
+  msg.classList.remove('show'); msg.textContent = '';
+  btn.disabled = true; btn.textContent = 'Проверка…';
+  try {
+    const r = await fetch('/api/verify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Неверный PIN');
+    sessionStorage.setItem(ADMIN_PW_KEY, pin);
+    revealDashboard();
+    input.value = '';
+    await bootDashboard();
+  } catch (e) {
+    msg.textContent = e.message || String(e);
+    msg.classList.add('show');
+    input.select();
+  } finally {
+    btn.disabled = false; btn.textContent = 'Войти';
+  }
+}
+
+async function bootDashboard() {
   document.getElementById('todayDate').textContent = new Date().toLocaleDateString('ru-RU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   setVal('dayDate', today());
   setVal('incDate', today());
@@ -2123,6 +2240,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const ok = await initSupabase();
   if (ok) await loadAll();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Hide status dot while the gate is showing — nothing to report yet.
+  const dot = document.getElementById('statusDot');
+  if (dot) dot.style.display = 'none';
+
+  if (isAdminUnlocked()) {
+    revealDashboard();
+    await bootDashboard();
+  } else {
+    // Gate is visible; wire up Enter to submit.
+    const gatePin = document.getElementById('gatePin');
+    gatePin.addEventListener('keydown', e => { if (e.key === 'Enter') unlockAdmin(); });
+    // Focus the input after layout settles (autofocus attribute is best-effort).
+    setTimeout(() => gatePin.focus(), 50);
+  }
 });
 </script>
 
