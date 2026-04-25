@@ -6,8 +6,8 @@
 
 ## Возможности
 
-- **Записи** — ежедневные итоги выручки по каждому мастеру, журнал по дням, итоги за месяц, журнал услуг (из /register)
-- **/register** — мобильная страница для мастеров: вход по PIN, выбор услуги, авто-расчёт комиссии, сохранение за 2 клика
+- **Записи** — ежедневные итоги выручки по каждому мастеру, журнал по дням, итоги за месяц, журнал услуг
+- **Отдельный поддомен для мастеров** (`nicole-salon-pro.vercel.app`): вход по PIN, выбор услуги, авто-расчёт комиссии, сохранение за 2 клика. Админская панель не доступна с этого адреса.
 - **📷 Распознавание фото отчёта** — загрузите фото страницы из тетради, Claude Vision (Sonnet 4.6) распознает данные, вы проверите и сохраните в один клик
 - **Финансы** — доходы и расходы с категориями, статусами оплаты, поставщиками
 - **Продукция** — каталог продукции по брендам (Constant Delight, Matrix, …)
@@ -52,43 +52,59 @@ cp config.js.example config.js
 
 > ⚠️ **Безопасность:** ключ хранится только на стороне Vercel как env var, никогда не попадает в браузер и не коммитится в репозиторий.
 
-### 5. Self-service для мастеров (`/register`)
+### 5. Self-service для мастеров (отдельный поддомен)
 
-Мастера могут сами фиксировать услуги в реальном времени с телефона. Это требует миграции БД и двух дополнительных переменных окружения.
+Мастера получают **собственный адрес** `nicole-salon-pro.vercel.app`, полностью отделённый от админской панели. Это достигается через **второй Vercel-проект**, подключённый к тому же GitHub-репозиторию: деплои синхронизированы, но URL разные. [`vercel.json`](vercel.json) содержит rewrite, который на хосте `nicole-salon-pro.vercel.app` отдаёт `register.html` вместо `index.html`.
 
-**БД:**
+**5.1. Миграция БД**
 
-1. Supabase → **SQL Editor → New query** → вставьте [`supabase/migrations/002_attendances.sql`](supabase/migrations/002_attendances.sql) → **RUN**. Добавит:
+Supabase → **SQL Editor → New query** → вставьте [`supabase/migrations/002_attendances.sql`](supabase/migrations/002_attendances.sql) → **RUN**. Добавит:
    - колонку `masters.pin_hash` (scrypt-хэш)
    - таблицу `attendances` (запись по услугам)
    - таблицу `pin_attempts` (аудит + rate-limit)
    - view `masters_public` (без `pin_hash` для anon)
 
-**Vercel env vars** (добавить и сделать Redeploy):
+**5.2. Создать второй Vercel-проект**
 
-| Key                         | Value | Где взять |
-|-----------------------------|-------|-----------|
-| `SUPABASE_URL`              | `https://XXXXX.supabase.co` | Supabase → Settings → API |
-| `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` (длинный JWT)       | Supabase → Settings → API → `service_role` (⚠️ НЕ anon) |
-| `ADMIN_PASSWORD`            | любой пароль, который вы запомните | придумайте сами — используется для установки PIN |
+1. Vercel Dashboard → **Add New → Project** → импортируйте тот же репозиторий `nicole-beauty`
+2. **Project Name** = `nicole-salon-pro` (даст URL `https://nicole-salon-pro.vercel.app`)
+3. Framework preset: **Other** → **Deploy**
+
+> Имя `nicole-salon-pro` совпадает с rewrite-правилом в `vercel.json`. Если выбрать другое имя, обновите значение `host` во всех `rewrites` в `vercel.json` на новый хост.
+
+**5.3. Env vars — на обоих проектах**
+
+Добавьте в **Settings → Environment Variables** КАЖДОГО проекта (Production/Preview/Development):
+
+| Key                         | Value                                         | Где взять                                                 |
+|-----------------------------|-----------------------------------------------|-----------------------------------------------------------|
+| `SUPABASE_URL`              | `https://gyixkgytywjtttcnynzn.supabase.co`    | Supabase → Settings → API                                  |
+| `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` (длинный JWT)                        | Supabase → Settings → API → **service_role** (⚠️ НЕ anon) |
+| `ADMIN_PASSWORD`            | любой пароль, придумайте сами                 | нужен для установки PIN в админке                          |
+
+`ANTHROPIC_API_KEY` нужен только на проекте админа — OCR-функция недоступна с pro-поддомена.
+
+После добавления env vars: **Deployments → последний → ⋯ → Redeploy** на обоих проектах.
 
 > ⚠️ `service_role` key обходит RLS. Храните только как Vercel env var, **никогда** не в репо и не в браузере.
 
-**Настройка PIN для каждого мастера:**
+**5.4. Настройка PIN для каждого мастера**
 
-1. Откройте `/` → вкладка **Мастера** → кнопка **PIN** рядом с именем
-2. Введите новый PIN (4–8 цифр) и пароль администратора (из `ADMIN_PASSWORD`)
-3. Сообщите PIN мастеру
+1. Откройте админку `https://nicole-beauty.vercel.app` → вкладка **Мастера**
+2. Кнопка **PIN** рядом с именем мастера
+3. Введите новый PIN (4–8 цифр) и пароль администратора (из `ADMIN_PASSWORD` — кэшируется в sessionStorage, запрашивается один раз)
+4. Сообщите PIN мастеру
 
-**Использование мастером:**
+**5.5. Использование мастером**
 
-1. Мастер открывает `https://ваш-домен.vercel.app/register` на телефоне
+1. Мастер открывает `https://nicole-salon-pro.vercel.app` на телефоне
 2. Выбирает своё имя → вводит PIN → «Войти»
-3. Для каждой услуги: выбирает услугу → цена подтягивается → «Записать» (2 клика)
-4. Сессия хранится до закрытия вкладки. «Выход» — вручную.
+3. Для каждой услуги: выбирает услугу → цена подтягивается → «Записать»
+4. Сессия хранится до закрытия вкладки. «Выход» вручную.
 
 **Безопасность:**
 
+- Админская панель **недоступна** с `nicole-salon-pro.vercel.app` (rewrite отдаёт `register.html` для `/`, `/index`, `/index.html`)
 - PIN хэшируется scrypt-ом (Node built-in) перед сохранением
 - 5 ошибок подряд за минуту → блокировка на 60 секунд (`pin_attempts` audit)
 - Цена переопределяется мастером, но ограничена 10× прайса из `master_services`
@@ -98,8 +114,8 @@ cp config.js.example config.js
 ## Структура
 
 ```
-index.html             — админская панель (single-page)
-register.html          — форма мастера (/register)
+index.html             — админская панель (serve на nicole-beauty.vercel.app)
+register.html          — форма мастера (serve на nicole-salon-pro.vercel.app)
 config.js              — URL и anon key (см. config.js.example)
 config.js.example      — шаблон конфига
 assets/nicole-logo.png — логотип

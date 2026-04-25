@@ -1053,7 +1053,7 @@
 
   <div class="card">
     <h2>Журнал услуг</h2>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:10px;letter-spacing:.05em;">Записи, внесённые мастерами через <a href="/register" style="color:var(--accent-deep);">/register</a>.</p>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px;letter-spacing:.05em;">Записи, внесённые мастерами через их рабочую страницу.</p>
     <table>
       <thead>
         <tr><th>Дата</th><th>Мастер</th><th>Услуга</th><th>Цена</th><th>Мастеру</th><th>Клиент</th><th>Оплата</th></tr>
@@ -1269,7 +1269,7 @@
 
   <div class="card">
     <h2>Услуги за период</h2>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:10px;letter-spacing:.05em;">Агрегация записей мастеров через <a href="/register" style="color:var(--accent-deep);">/register</a> по услугам.</p>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px;letter-spacing:.05em;">Агрегация записей мастеров по услугам.</p>
     <table>
       <thead><tr><th>Услуга</th><th>Кол-во</th><th>Выручка</th><th>Мастеру</th><th>Салону</th><th>Доля</th></tr></thead>
       <tbody id="repServiceTable"></tbody>
@@ -1766,7 +1766,7 @@ function renderReports() {
   const svcTbody = document.getElementById('repServiceTable');
   if (svcTbody) {
     svcTbody.innerHTML = svcEntries.length === 0
-      ? '<tr><td colspan="6" class="empty-msg">Нет записей. Данные появятся, когда мастера начнут пользоваться /register.</td></tr>'
+      ? '<tr><td colspan="6" class="empty-msg">Нет записей. Данные появятся, когда мастера начнут записывать услуги.</td></tr>'
       : svcEntries.map(([name, v]) => `<tr>
           <td>${escapeText(name)}</td>
           <td style="text-align:center">${v.count}</td>

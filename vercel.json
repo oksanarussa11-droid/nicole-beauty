@@ -1,6 +1,23 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "nicole-salon-pro.vercel.app" }],
+      "destination": "/register.html"
+    },
+    {
+      "source": "/index",
+      "has": [{ "type": "host", "value": "nicole-salon-pro.vercel.app" }],
+      "destination": "/register.html"
+    },
+    {
+      "source": "/index.html",
+      "has": [{ "type": "host", "value": "nicole-salon-pro.vercel.app" }],
+      "destination": "/register.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
