@@ -57,6 +57,9 @@ function clientIp(req) {
   return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || null;
 }
 
+// Escape Telegram Markdown special chars in dynamic values.
+function escMd(s) { return String(s || '').replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1'); }
+
 function json(res, code, obj) {
   res.statusCode = code;
   res.setHeader('Content-Type', 'application/json');
@@ -156,6 +159,31 @@ module.exports = async (req, res) => {
 
     // 8. Log successful attempt (audit trail)
     await sb('POST', 'pin_attempts', { master_id: masterId, ip, success: true }).catch(() => {});
+
+    // 9. Fire-and-forget Telegram notification — never breaks the response.
+    if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+      const msg = [
+        '✂️ *Новая запись*',
+        '',
+        `*Мастер:* ${escMd(master.name)}`,
+        `*Услуга:* ${escMd(serviceName) || '—'}`,
+        `*Цена:* ${price.toLocaleString('ru-RU')} ₽`,
+        `*Мастеру:* ${masterPay.toLocaleString('ru-RU')} ₽ (${commissionPct}%)`,
+        clientName ? `*Клиент:* ${escMd(clientName)}` : null,
+        paymentMethod ? `*Оплата:* ${escMd(paymentMethod)}` : null,
+        `_${nowTime.slice(0, 5)} · ${todayDate}_`,
+      ].filter(Boolean).join('\n');
+
+      fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: process.env.TELEGRAM_CHAT_ID,
+          text: msg,
+          parse_mode: 'Markdown',
+        }),
+      }).catch(e => console.error('telegram notify failed:', e));
+    }
 
     return json(res, 200, {
       ok: true,
