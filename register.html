@@ -387,6 +387,156 @@
       font-weight: 500;
     }
 
+    /* ─── History card ─── */
+    .history-card > summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .history-card > summary::-webkit-details-marker { display: none; }
+    .history-card > summary h2 { margin-bottom: 0; }
+    .history-card[open] > summary { margin-bottom: 18px; }
+
+    .history-caret {
+      font-size: 14px;
+      color: var(--muted);
+      transition: transform .2s;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .history-card[open] > summary .history-caret { transform: rotate(180deg); }
+
+    .history-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .btn-chip {
+      padding: 8px 14px;
+      border: 1px solid var(--hairline-strong);
+      background: var(--surface);
+      color: var(--ink-soft);
+      border-radius: 99px;
+      font-size: 11px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      cursor: pointer;
+      font-family: var(--sans);
+      font-weight: 500;
+      min-height: 36px;
+      transition: all .15s;
+    }
+    .btn-chip:hover { border-color: var(--accent); color: var(--ink); }
+    .btn-chip.is-active {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: var(--bg);
+    }
+
+    .history-range {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 14px;
+      padding: 12px;
+      background: var(--surface-2);
+      border-radius: var(--radius-card);
+      border: 1px solid var(--hairline);
+    }
+    .history-range label {
+      flex: 1 1 120px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .22em;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-weight: 500;
+    }
+    .history-range input[type="date"] {
+      font-size: 14px;
+      padding: 8px;
+      border: 1px solid var(--hairline-strong);
+      background: var(--surface);
+      border-radius: var(--radius);
+      font-family: var(--sans);
+      color: var(--ink);
+      min-height: 40px;
+    }
+    .btn-sm {
+      padding: 10px 16px;
+      min-height: 40px;
+      font-size: 11px;
+      width: auto;
+      letter-spacing: .18em;
+    }
+
+    .history-days {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .history-day {
+      border-bottom: 1px solid var(--hairline);
+    }
+    .history-day:last-child { border-bottom: 0; }
+
+    .history-day-head {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 12px;
+      align-items: baseline;
+      width: 100%;
+      padding: 14px 0;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      font-family: var(--sans);
+      text-align: left;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .history-day-head:hover { color: var(--accent-deep); }
+    .history-day-date {
+      text-transform: capitalize;
+      font-family: var(--serif);
+      font-size: 16px;
+      font-weight: 500;
+    }
+    .history-day-totals {
+      font-size: 12px;
+      color: var(--ink-soft);
+      font-variant-numeric: tabular-nums;
+      font-weight: 400;
+      letter-spacing: .04em;
+    }
+    .history-day-head .history-caret { font-size: 12px; }
+    .history-day.is-open .history-caret { transform: rotate(180deg); }
+
+    .history-day-items {
+      list-style: none;
+      padding: 0 0 12px 0;
+      margin: 0;
+      display: none;
+    }
+    .history-day.is-open .history-day-items { display: block; }
+    .history-day-items li {
+      padding: 10px 0;
+      border-top: 1px solid var(--hairline);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: baseline;
+    }
+
     .msg {
       padding: 12px 16px;
       border-radius: var(--radius);
@@ -587,6 +737,29 @@
       </div>
     </div>
 
+    <!-- ═══ HISTORY CARD (collapsible) ═══ -->
+    <details class="card history-card" id="historyCard" style="display:none;">
+      <summary>
+        <h2>История</h2>
+        <span class="history-caret">▾</span>
+      </summary>
+      <div class="history-filters">
+        <button type="button" class="btn-chip is-active" data-days="7"  onclick="selectHistoryPreset(7)">7 дней</button>
+        <button type="button" class="btn-chip"           data-days="14" onclick="selectHistoryPreset(14)">14 дней</button>
+        <button type="button" class="btn-chip"           data-days="30" onclick="selectHistoryPreset(30)">30 дней</button>
+        <button type="button" class="btn-chip"           data-custom    onclick="toggleHistoryRange()">Период…</button>
+      </div>
+      <div class="history-range" id="historyRange" style="display:none;">
+        <label>С<input type="date" id="histFrom"></label>
+        <label>По<input type="date" id="histTo"></label>
+        <button class="btn btn-sm" type="button" onclick="loadHistoryCustom()">Показать</button>
+      </div>
+      <ul class="history-days" id="historyList"></ul>
+      <div class="total-row" id="historyTotal" style="display:none;">
+        <span>Итого за период</span><strong id="historyTotalVal">—</strong>
+      </div>
+    </details>
+
   </div>
 
   <div class="toast" id="toast"></div>
@@ -606,6 +779,13 @@
     let state = {
       masterServices: [],          // [{ service_id, price, commission_master_pct, service_name }] for the logged master
       todayAttendances: [],
+      history: {
+        loaded: false,             // becomes true after first load; reset on login/logout
+        preset: 7,                 // active preset (7/14/30) or null when custom range
+        from: null,                // 'YYYY-MM-DD' currently displayed
+        to: null,
+        days: [],                  // [{ date, items, gross, master_pay }] sorted desc by date
+      },
     };
 
     // ─── DOM helpers ─────────────────────────────────────────────
@@ -695,6 +875,162 @@
       return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
+    // ─── History (own attendances over a range, grouped by day) ─────────
+    function shiftDate(isoToday, deltaDays) {
+      // Compute YYYY-MM-DD without timezone surprises (use UTC math from today's local date).
+      const [y, m, d] = isoToday.split('-').map(Number);
+      const t = new Date(Date.UTC(y, m - 1, d));
+      t.setUTCDate(t.getUTCDate() + deltaDays);
+      return t.toISOString().split('T')[0];
+    }
+
+    function fmtDayLabel(iso) {
+      const [y, m, d] = iso.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      return dt.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
+    }
+
+    async function loadHistoryRange(from, to) {
+      if (!session) return;
+      const list = $('historyList');
+      const totalEl = $('historyTotal');
+      list.innerHTML = '<li class="att-empty">Загрузка…</li>';
+      totalEl.style.display = 'none';
+
+      const { data, error } = await sb
+        .from('attendances')
+        .select('date, time, service_name, price, master_pay, payment_method')
+        .eq('master_id', session.masterId)
+        .gte('date', from)
+        .lte('date', to)
+        .order('date', { ascending: false })
+        .order('time', { ascending: false });
+      if (error) {
+        toast('Ошибка истории: ' + error.message, true);
+        list.innerHTML = '<li class="att-empty">—</li>';
+        return;
+      }
+
+      const byDate = new Map();
+      for (const r of data || []) {
+        const day = byDate.get(r.date) || { date: r.date, items: [], gross: 0, master_pay: 0 };
+        day.items.push(r);
+        day.gross += Number(r.price);
+        day.master_pay += Number(r.master_pay);
+        byDate.set(r.date, day);
+      }
+      state.history.from = from;
+      state.history.to = to;
+      state.history.days = Array.from(byDate.values());
+      state.history.loaded = true;
+      renderHistory();
+    }
+
+    async function loadHistoryPreset(days) {
+      const to = today();
+      const from = shiftDate(to, -(days - 1));
+      await loadHistoryRange(from, to);
+    }
+
+    function renderHistory() {
+      const list = $('historyList');
+      const totalEl = $('historyTotal');
+      const days = state.history.days;
+      if (!days.length) {
+        list.innerHTML = '<li class="att-empty">За выбранный период записей нет</li>';
+        totalEl.style.display = 'none';
+        return;
+      }
+      list.innerHTML = days.map(d => {
+        const items = d.items.map(a => {
+          const time = (a.time || '').slice(0, 5);
+          return `<li>
+            <div class="att-time">${time}</div>
+            <div class="att-service">${escapeHtml(a.service_name || '—')}<small>${escapeHtml(a.payment_method || '')}</small></div>
+            <div class="att-amt">${fmt(a.price)}<small>мне: ${fmt(a.master_pay)}</small></div>
+          </li>`;
+        }).join('');
+        return `<li class="history-day">
+          <button type="button" class="history-day-head" onclick="toggleHistoryDay(this)">
+            <span class="history-day-date">${escapeHtml(fmtDayLabel(d.date))}</span>
+            <span class="history-day-totals">${fmt(d.gross)} · моё ${fmt(d.master_pay)}</span>
+            <span class="history-caret">▾</span>
+          </button>
+          <ul class="att-list history-day-items">${items}</ul>
+        </li>`;
+      }).join('');
+      const totalGross = days.reduce((s, d) => s + d.gross, 0);
+      const totalPay = days.reduce((s, d) => s + d.master_pay, 0);
+      setText('historyTotalVal', `${fmt(totalGross)} · моё ${fmt(totalPay)}`);
+      totalEl.style.display = 'flex';
+    }
+
+    function toggleHistoryDay(btn) {
+      btn.parentElement.classList.toggle('is-open');
+    }
+
+    function selectHistoryPreset(days) {
+      state.history.preset = days;
+      document.querySelectorAll('#historyCard .btn-chip').forEach(b => {
+        b.classList.toggle('is-active', b.dataset.days === String(days));
+      });
+      $('historyRange').style.display = 'none';
+      loadHistoryPreset(days);
+    }
+
+    function toggleHistoryRange() {
+      const r = $('historyRange');
+      const isHidden = (r.style.display === 'none' || !r.style.display);
+      r.style.display = isHidden ? 'flex' : 'none';
+      if (isHidden) {
+        document.querySelectorAll('#historyCard .btn-chip').forEach(b => b.classList.remove('is-active'));
+        document.querySelector('#historyCard .btn-chip[data-custom]')?.classList.add('is-active');
+        // Default: last 30 days, only if user hasn't typed values yet
+        const to = today();
+        const from = shiftDate(to, -29);
+        if (!$('histFrom').value) $('histFrom').value = from;
+        if (!$('histTo').value) $('histTo').value = to;
+      }
+    }
+
+    async function loadHistoryCustom() {
+      const from = $('histFrom').value;
+      const to   = $('histTo').value;
+      if (!from || !to) { toast('Укажите даты', true); return; }
+      if (from > to)    { toast('Дата «С» должна быть раньше «По»', true); return; }
+      state.history.preset = null;
+      await loadHistoryRange(from, to);
+    }
+
+    async function onHistoryToggle() {
+      const card = $('historyCard');
+      if (card.open && !state.history.loaded) {
+        await loadHistoryPreset(state.history.preset || 7);
+      }
+    }
+
+    async function refreshHistoryIfLoaded() {
+      if (!state.history.loaded) return;
+      if (state.history.from && state.history.to) {
+        await loadHistoryRange(state.history.from, state.history.to);
+      }
+    }
+
+    function resetHistoryState() {
+      state.history = { loaded: false, preset: 7, from: null, to: null, days: [] };
+      const card = $('historyCard');
+      if (card) card.open = false;
+      const list = $('historyList');
+      if (list) list.innerHTML = '';
+      const totalEl = $('historyTotal');
+      if (totalEl) totalEl.style.display = 'none';
+      const range = $('historyRange');
+      if (range) range.style.display = 'none';
+      document.querySelectorAll('#historyCard .btn-chip').forEach(b => {
+        b.classList.toggle('is-active', b.dataset.days === '7');
+      });
+    }
+
     // ─── Session (client-side) ───────────────────────────────────
     function restoreSession() {
       try {
@@ -720,6 +1056,8 @@
       $('loginCard').style.display = '';
       $('entryCard').style.display = 'none';
       $('todayCard').style.display = 'none';
+      $('historyCard').style.display = 'none';
+      resetHistoryState();
       setMsg('');
     }
 
@@ -727,6 +1065,8 @@
       $('loginCard').style.display = 'none';
       $('entryCard').style.display = '';
       $('todayCard').style.display = '';
+      $('historyCard').style.display = '';
+      resetHistoryState();
       setText('proName', session.name || '—');
       setMsg('');
       try {
@@ -819,6 +1159,7 @@
         const ownRadio = document.getElementById('prodOwn');
         if (ownRadio) ownRadio.checked = true;
         await loadTodayAttendances();
+        await refreshHistoryIfLoaded();
       } catch (e) {
         toast(e.message || String(e), true);
       } finally {
@@ -839,6 +1180,9 @@
       // Enter key in any login field triggers login
       $('loginPin').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
       $('loginMasterName').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginPin').focus(); });
+
+      // Lazy-load history on first expansion
+      $('historyCard').addEventListener('toggle', onHistoryToggle);
     });
   </script>
 </body>
