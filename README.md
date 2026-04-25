@@ -70,17 +70,23 @@ Supabase → **SQL Editor → New query** → вставьте [`supabase/migrat
 2. **Project Name** = `nicole-salon-pro` (даст URL `https://nicole-salon-pro.vercel.app`)
 3. Framework preset: **Other** → **Deploy**
 
-> Имя `nicole-salon-pro` совпадает с rewrite-правилом в `vercel.json`. Если выбрать другое имя, обновите значение `host` во всех `rewrites` в `vercel.json` на новый хост.
+> Имя любое — домен определяется именем проекта. Важно: на этом проекте нужно выставить env var `SITE=pro` (см. ниже), тогда [`vercel.json`](vercel.json)-овский `buildCommand` подменит `index.html` содержимым `register.html` при сборке.
 
-**5.3. Env vars — на обоих проектах**
+**5.3. Env vars**
 
-Добавьте в **Settings → Environment Variables** КАЖДОГО проекта (Production/Preview/Development):
+На **обоих** проектах (`nicole-beauty` и `nicole-salon-pro`) в **Settings → Environment Variables** (Production/Preview/Development):
 
 | Key                         | Value                                         | Где взять                                                 |
 |-----------------------------|-----------------------------------------------|-----------------------------------------------------------|
 | `SUPABASE_URL`              | `https://gyixkgytywjtttcnynzn.supabase.co`    | Supabase → Settings → API                                  |
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` (длинный JWT)                        | Supabase → Settings → API → **service_role** (⚠️ НЕ anon) |
 | `ADMIN_PASSWORD`            | любой пароль, придумайте сами                 | нужен для установки PIN в админке                          |
+
+**Только** на pro-проекте (`nicole-salon-pro`) добавьте ещё:
+
+| Key    | Value | Зачем                                          |
+|--------|-------|------------------------------------------------|
+| `SITE` | `pro` | Триггер для `buildCommand` в `vercel.json` — при сборке pro-проекта `register.html` копируется поверх `index.html`, поэтому корень `/` отдаёт форму мастера, а не админку |
 
 `ANTHROPIC_API_KEY` нужен только на проекте админа — OCR-функция недоступна с pro-поддомена.
 
@@ -104,7 +110,7 @@ Supabase → **SQL Editor → New query** → вставьте [`supabase/migrat
 
 **Безопасность:**
 
-- Админская панель **недоступна** с `nicole-salon-pro.vercel.app` (rewrite отдаёт `register.html` для `/`, `/index`, `/index.html`)
+- Админская панель **недоступна** с `nicole-salon-pro.vercel.app` (при сборке `index.html` заменён на `register.html` через `buildCommand`)
 - PIN хэшируется scrypt-ом (Node built-in) перед сохранением
 - 5 ошибок подряд за минуту → блокировка на 60 секунд (`pin_attempts` audit)
 - Цена переопределяется мастером, но ограничена 10× прайса из `master_services`

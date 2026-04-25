@@ -1,23 +1,7 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
-  "rewrites": [
-    {
-      "source": "/",
-      "has": [{ "type": "host", "value": "nicole-salon-pro.vercel.app" }],
-      "destination": "/register.html"
-    },
-    {
-      "source": "/index",
-      "has": [{ "type": "host", "value": "nicole-salon-pro.vercel.app" }],
-      "destination": "/register.html"
-    },
-    {
-      "source": "/index.html",
-      "has": [{ "type": "host", "value": "nicole-salon-pro.vercel.app" }],
-      "destination": "/register.html"
-    }
-  ],
+  "buildCommand": "if [ \"$SITE\" = \"pro\" ]; then cp register.html index.html && echo 'pro site: register.html copied to index.html'; else echo 'admin site: no swap'; fi",
   "headers": [
     {
       "source": "/(.*)",
