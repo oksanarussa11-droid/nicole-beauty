@@ -365,10 +365,8 @@
     <h2>Вход</h2>
     <div class="row">
       <div>
-        <label class="lbl" for="loginMaster">Мастер</label>
-        <select class="fld" id="loginMaster">
-          <option value="">—</option>
-        </select>
+        <label class="lbl" for="loginMasterName">Имя мастера</label>
+        <input class="fld" id="loginMasterName" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="120" placeholder="Например, Людмила">
       </div>
       <div>
         <label class="lbl" for="loginPin">PIN</label>
@@ -445,9 +443,7 @@ const today = () => new Date().toISOString().split('T')[0];
 let sb = null;
 let session = null;           // { masterId, pin, name } from sessionStorage
 let state = {
-  masters: [],
-  services: [],                // all services
-  masterServices: [],          // [{ service_id, price, commission_master_pct, service_name }]
+  masterServices: [],          // [{ service_id, price, commission_master_pct, service_name }] for the logged master
   todayAttendances: [],
 };
 
@@ -478,15 +474,6 @@ function initSupabase() {
   }
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   return true;
-}
-
-async function loadMasters() {
-  const { data, error } = await sb.from('masters_public').select('*').order('name');
-  if (error) throw error;
-  state.masters = data || [];
-  const sel = $('loginMaster');
-  sel.innerHTML = '<option value="">—</option>' +
-    state.masters.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
 }
 
 async function loadServicesForMaster(masterId) {
@@ -591,9 +578,9 @@ async function showEntryUI() {
 
 // ─── Login ───────────────────────────────────────────────────
 async function login() {
-  const masterId = parseInt($('loginMaster').value);
+  const masterName = $('loginMasterName').value.trim();
   const pin = $('loginPin').value.trim();
-  if (!masterId) { setMsg('Выберите мастера', 'err'); return; }
+  if (!masterName) { setMsg('Введите имя мастера', 'err'); return; }
   if (!/^\d{4,8}$/.test(pin)) { setMsg('PIN — 4–8 цифр', 'err'); return; }
 
   const btn = $('loginBtn');
@@ -602,11 +589,13 @@ async function login() {
     const r = await fetch('/api/verify-pin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ master_id: masterId, pin }),
+      body: JSON.stringify({ master_name: masterName, pin }),
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
-    saveSession({ masterId, pin, name: data.master?.name || '' });
+    // Server returns the canonical master_id and correctly-cased name.
+    saveSession({ masterId: data.master.id, pin, name: data.master.name || masterName });
+    $('loginPin').value = '';
     await showEntryUI();
   } catch (e) {
     setMsg(e.message || String(e), 'err');
@@ -675,12 +664,6 @@ async function saveAttendance() {
 // ─── Init ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   if (!initSupabase()) return;
-  try {
-    await loadMasters();
-  } catch (e) {
-    setMsg('Ошибка загрузки мастеров: ' + (e.message || e), 'err');
-    return;
-  }
   session = restoreSession();
   if (session && session.masterId && session.pin) {
     await showEntryUI();
@@ -688,8 +671,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLoginUI();
   }
 
-  // Enter key in PIN input triggers login
+  // Enter key in any login field triggers login
   $('loginPin').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+  $('loginMasterName').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginPin').focus(); });
 });
 </script>
 </body>

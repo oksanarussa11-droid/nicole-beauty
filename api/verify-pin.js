@@ -51,6 +51,13 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
+// Generic auth failure response — same for "master not found", "PIN not set",
+// and "wrong PIN" to prevent name enumeration from the login endpoint.
+const AUTH_FAIL = { error: 'Неверное имя или PIN' };
+const AUTH_FAIL_DELAY_MS = 350;
+
+async function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   if (!SUPABASE_URL || !SERVICE_ROLE) return json(res, 500, { error: 'Server misconfigured: Supabase env vars missing' });
@@ -59,34 +66,53 @@ module.exports = async (req, res) => {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
   body = body || {};
 
-  const masterId = parseInt(body.master_id);
+  const masterName = String(body.master_name || '').trim();
   const pin = String(body.pin || '');
   const ip = clientIp(req);
 
-  if (!masterId) return json(res, 400, { error: 'master_id is required' });
+  if (!masterName) return json(res, 400, { error: 'master_name is required' });
   if (!pin || !/^\d{4,8}$/.test(pin)) return json(res, 400, { error: 'pin must be 4–8 digits' });
+  // Accept up to 120 chars to keep the DB query bounded
+  if (masterName.length > 120) return json(res, 400, { error: 'master_name too long' });
 
   try {
-    // Rate limit
+    // Look up master by name (case-insensitive exact match).
+    // We escape `,` in the name to protect against PostgREST operator injection;
+    // other chars are safe inside a quoted ilike value.
+    const encoded = encodeURIComponent(masterName.replace(/,/g, '\\,'));
+    const masters = await sb('GET', `masters?select=id,name,pin_hash&name=ilike.${encoded}&limit=1`);
+    const master = Array.isArray(masters) ? masters[0] : null;
+
+    // Unknown name → return same 401 as wrong PIN to prevent enumeration.
+    if (!master) {
+      await delay(AUTH_FAIL_DELAY_MS);
+      return json(res, 401, AUTH_FAIL);
+    }
+
+    // Rate-limit failed attempts per master_id (known name path only).
     const cutoff = new Date(Date.now() - 60 * 1000).toISOString();
     const recentFails = await sb(
       'GET',
-      `pin_attempts?select=id&master_id=eq.${masterId}&success=is.false&attempted_at=gte.${encodeURIComponent(cutoff)}`,
+      `pin_attempts?select=id&master_id=eq.${master.id}&success=is.false&attempted_at=gte.${encodeURIComponent(cutoff)}`,
     );
     if (Array.isArray(recentFails) && recentFails.length >= MAX_PIN_FAILS_PER_MINUTE) {
       res.setHeader('Retry-After', '60');
-      return json(res, 429, { error: 'Too many failed attempts. Try again in a minute.' });
+      return json(res, 429, { error: 'Слишком много неудачных попыток. Попробуйте через минуту.' });
     }
 
-    // Load master + pin_hash
-    const masters = await sb('GET', `masters?select=id,name,pin_hash&id=eq.${masterId}&limit=1`);
-    const master = Array.isArray(masters) ? masters[0] : null;
-    if (!master) return json(res, 404, { error: 'Master not found' });
-    if (!master.pin_hash) return json(res, 403, { error: 'PIN not configured for this master' });
+    if (!master.pin_hash) {
+      // Same 401 as invalid — don't reveal that a master exists but has no PIN.
+      await sb('POST', 'pin_attempts', { master_id: master.id, ip, success: false }).catch(() => {});
+      await delay(AUTH_FAIL_DELAY_MS);
+      return json(res, 401, AUTH_FAIL);
+    }
 
     const ok = verifyPin(pin, master.pin_hash);
-    await sb('POST', 'pin_attempts', { master_id: masterId, ip, success: ok }).catch(() => {});
-    if (!ok) return json(res, 401, { error: 'Invalid PIN' });
+    await sb('POST', 'pin_attempts', { master_id: master.id, ip, success: ok }).catch(() => {});
+    if (!ok) {
+      await delay(AUTH_FAIL_DELAY_MS);
+      return json(res, 401, AUTH_FAIL);
+    }
 
     return json(res, 200, { ok: true, master: { id: master.id, name: master.name } });
   } catch (e) {
