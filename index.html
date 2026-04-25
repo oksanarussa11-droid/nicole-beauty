@@ -1286,9 +1286,9 @@
 
   <div class="card">
     <h2>Цены и комиссии (мастер × услуга)</h2>
-    <p style="color:#888;font-size:12px;margin-bottom:10px;">% — доля мастера от выручки. Остальное — салону.</p>
+    <p style="color:#888;font-size:12px;margin-bottom:10px;">% — доля мастера от выручки. «Свои» — мастер использует свои продукты (выше). «Салон» — продукты салона (ниже).</p>
     <table>
-      <thead><tr><th>Мастер</th><th>Услуга</th><th>Цена, ₽</th><th>% мастеру</th><th></th></tr></thead>
+      <thead><tr><th>Мастер</th><th>Услуга</th><th>Цена, ₽</th><th>% свои</th><th>% салон</th><th></th></tr></thead>
       <tbody id="msTable"></tbody>
     </table>
   </div>
@@ -1545,8 +1545,14 @@ function renderDayMasterGrid() {
     const color = palette[i % palette.length];
     const rules = state.masterServices
       .filter(ms => ms.master_id === m.id)
-      .map(ms => `${serviceName(ms.service_id)} ${ms.commission_master_pct}/${100-ms.commission_master_pct}`)
-      .join(' | ') || '—';
+      .map(ms => {
+        const own = ms.commission_master_pct;
+        const sal = ms.commission_master_pct_salon;
+        return own === sal
+          ? `${serviceName(ms.service_id)} ${own}%`
+          : `${serviceName(ms.service_id)} ${own}/${sal}%`;
+      })
+      .join(' · ') || '—';
     return `<div style="background:#faf6f9;border-radius:10px;padding:14px;border-left:4px solid ${color};">
       <h3 style="margin-bottom:3px;color:${color};font-size:15px;">${m.name}</h3>
       <p style="color:#999;font-size:11px;margin-bottom:8px;">${rules}</p>
@@ -1715,19 +1721,21 @@ function renderMasters() {
       const ms = state.masterServices.find(x => x.master_id === m.id && x.service_id === s.id);
       const id    = ms ? ms.id : '';
       const price = ms ? ms.price : 0;
-      const pct   = ms ? ms.commission_master_pct : 50;
+      const pct      = ms ? ms.commission_master_pct       : 50;
+      const pctSalon = ms ? ms.commission_master_pct_salon : 40;
       rows.push(`<tr>
         <td>${m.name}</td>
         <td>${s.name}</td>
         <td><input type="number" step="0.01" value="${price}" id="msPrice_${m.id}_${s.id}" class="num-sm"></td>
         <td><input type="number" step="0.01" min="0" max="100" value="${pct}" id="msPct_${m.id}_${s.id}" class="num-pct"></td>
+        <td><input type="number" step="0.01" min="0" max="100" value="${pctSalon}" id="msPctSalon_${m.id}_${s.id}" class="num-pct"></td>
         <td><button class="btn btn-primary btn-sm" onclick="saveMS(${m.id}, ${s.id}, ${id||0})">Сохранить</button></td>
       </tr>`);
     }
   }
   document.getElementById('msTable').innerHTML = rows.length
     ? rows.join('')
-    : '<tr><td colspan="5" class="empty-msg">Добавьте мастеров и услуги</td></tr>';
+    : '<tr><td colspan="6" class="empty-msg">Добавьте мастеров и услуги</td></tr>';
 }
 
 function renderReports() {
@@ -2005,9 +2013,19 @@ async function addService() {
 }
 
 async function saveMS(masterId, serviceId, msId) {
-  const price = parseFloat(val(`msPrice_${masterId}_${serviceId}`)) || 0;
-  const pct   = parseFloat(val(`msPct_${masterId}_${serviceId}`))   || 0;
-  const payload = { master_id: masterId, service_id: serviceId, price, commission_master_pct: pct };
+  const price    = parseFloat(val(`msPrice_${masterId}_${serviceId}`))    || 0;
+  const pct      = parseFloat(val(`msPct_${masterId}_${serviceId}`))      || 0;
+  const pctSalon = parseFloat(val(`msPctSalon_${masterId}_${serviceId}`)) || 0;
+  if (pct < 0 || pct > 100 || pctSalon < 0 || pctSalon > 100) {
+    return toast('Комиссия должна быть от 0 до 100', true);
+  }
+  const payload = {
+    master_id: masterId,
+    service_id: serviceId,
+    price,
+    commission_master_pct: pct,
+    commission_master_pct_salon: pctSalon,
+  };
   const { error } = msId
     ? await sb.from('master_services').update(payload).eq('id', msId)
     : await sb.from('master_services').insert(payload);

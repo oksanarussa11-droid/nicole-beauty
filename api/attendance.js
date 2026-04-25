@@ -1,8 +1,12 @@
 // Vercel serverless — insert a professional attendance record, PIN-validated.
 //
 // POST /api/attendance
-// Body: { master_id, pin, service_id, price, client_name?, payment_method?, note? }
-// Response: { ok: true, id, master_pay, commission_pct }
+// Body: { master_id, pin, service_id, price, uses_salon_products?, client_name?, payment_method?, note? }
+// Response: { ok: true, id, master_pay, commission_pct, uses_salon_products }
+//
+// Commission rule:
+//   uses_salon_products=false (default) → master_services.commission_master_pct       (own products, higher)
+//   uses_salon_products=true            → master_services.commission_master_pct_salon (salon products, lower)
 //
 // Security: PIN is compared to masters.pin_hash (scrypt) with constant-time equality.
 // Writes use the Supabase service-role key (server-only env var). The client-facing
@@ -71,6 +75,7 @@ module.exports = async (req, res) => {
   const pin = String(body.pin || '');
   const serviceId = parseInt(body.service_id);
   const price = Number(body.price);
+  const usesSalonProducts = body.uses_salon_products === true;
   const clientName = (body.client_name || '').toString().slice(0, 200) || null;
   const paymentMethod = (body.payment_method || '').toString().slice(0, 40) || null;
   const note = (body.note || '').toString().slice(0, 500) || null;
@@ -104,13 +109,17 @@ module.exports = async (req, res) => {
       return json(res, 401, { error: 'Invalid PIN' });
     }
 
-    // 4. Lookup master_services row for (master_id, service_id)
-    const ms = await sb('GET', `master_services?select=price,commission_master_pct,services(name)&master_id=eq.${masterId}&service_id=eq.${serviceId}&limit=1`);
+    // 4. Lookup master_services row for (master_id, service_id) — fetch BOTH commission rates
+    const ms = await sb('GET', `master_services?select=price,commission_master_pct,commission_master_pct_salon,services(name)&master_id=eq.${masterId}&service_id=eq.${serviceId}&limit=1`);
     const msRow = Array.isArray(ms) ? ms[0] : null;
     if (!msRow) return json(res, 422, { error: 'Service not configured for this master' });
 
     const catalogPrice = Number(msRow.price) || 0;
-    const commissionPct = Number(msRow.commission_master_pct);
+    // Pick the right rate based on the product source flag.
+    // Server-controlled — client's choice is honoured but the actual rate comes from DB.
+    const commissionPct = usesSalonProducts
+      ? Number(msRow.commission_master_pct_salon)
+      : Number(msRow.commission_master_pct);
     if (!Number.isFinite(commissionPct)) return json(res, 422, { error: 'Commission rate missing for this service' });
 
     // 5. Price sanity: allow override but bound to avoid mistakes/abuse
@@ -137,6 +146,7 @@ module.exports = async (req, res) => {
       price,
       master_pay: masterPay,
       commission_pct: commissionPct,
+      uses_salon_products: usesSalonProducts,
       client_name: clientName,
       payment_method: paymentMethod,
       source: 'pro_form',
@@ -152,6 +162,7 @@ module.exports = async (req, res) => {
       id: row?.id,
       master_pay: masterPay,
       commission_pct: commissionPct,
+      uses_salon_products: usesSalonProducts,
       service_name: serviceName,
     });
   } catch (e) {

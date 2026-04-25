@@ -19,14 +19,15 @@ create table if not exists services (
 );
 
 -- Price + commission per master+service combination.
--- commission_master_pct = share (0–100) that goes to the master.
+-- Two commission rates: master uses OWN products (higher) vs SALON products (lower).
 create table if not exists master_services (
-  id                    bigserial primary key,
-  master_id             bigint not null references masters(id) on delete cascade,
-  service_id            bigint not null references services(id) on delete cascade,
-  price                 numeric(12,2) not null default 0,
-  commission_master_pct numeric(5,2)  not null default 50,
-  created_at            timestamptz not null default now(),
+  id                          bigserial primary key,
+  master_id                   bigint not null references masters(id) on delete cascade,
+  service_id                  bigint not null references services(id) on delete cascade,
+  price                       numeric(12,2) not null default 0,
+  commission_master_pct       numeric(5,2)  not null default 50,  -- own products
+  commission_master_pct_salon numeric(5,2)  not null default 40,  -- salon products
+  created_at                  timestamptz not null default now(),
   unique (master_id, service_id)
 );
 
@@ -80,20 +81,21 @@ alter table masters add column if not exists pin_hash text;
 
 -- Granular per-service attendance records, fed by /api/attendance (pro form).
 create table if not exists attendances (
-  id              bigserial primary key,
-  date            date   not null default current_date,
-  time            time,
-  master_id       bigint not null references masters(id) on delete restrict,
-  service_id      bigint references services(id) on delete set null,
-  service_name    text,
-  price           numeric(12,2) not null,
-  master_pay      numeric(12,2) not null default 0,
-  commission_pct  numeric(5,2),
-  client_name     text,
-  payment_method  text,
-  source          text   not null default 'pro_form',
-  note            text,
-  created_at      timestamptz not null default now()
+  id                  bigserial primary key,
+  date                date   not null default current_date,
+  time                time,
+  master_id           bigint not null references masters(id) on delete restrict,
+  service_id          bigint references services(id) on delete set null,
+  service_name        text,
+  price               numeric(12,2) not null,
+  master_pay          numeric(12,2) not null default 0,
+  commission_pct      numeric(5,2),
+  uses_salon_products boolean not null default false,  -- audit: which commission rule applied
+  client_name         text,
+  payment_method      text,
+  source              text   not null default 'pro_form',
+  note                text,
+  created_at          timestamptz not null default now()
 );
 create index if not exists attendances_date_idx   on attendances(date);
 create index if not exists attendances_master_idx on attendances(master_id);
