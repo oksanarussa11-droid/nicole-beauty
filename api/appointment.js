@@ -76,6 +76,21 @@ function clientIp(req) {
 
 function escMd(s) { return String(s || '').replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1'); }
 
+async function fetchMasterName(masterId) {
+  const rows = await sb('GET', `masters?select=name&id=eq.${masterId}&limit=1`);
+  const row = Array.isArray(rows) ? rows[0] : null;
+  return row?.name || null;
+}
+
+// Convert a UTC ISO timestamp to "YYYY-MM-DD HH:mm" in Samara local time.
+function fmtSamaraLocal(isoUtc) {
+  const d = new Date(isoUtc);
+  // Samara is UTC+4, no DST.
+  const samara = new Date(d.getTime() + 4 * 3600 * 1000);
+  const pad = n => String(n).padStart(2, '0');
+  return `${samara.getUTCFullYear()}-${pad(samara.getUTCMonth() + 1)}-${pad(samara.getUTCDate())} ${pad(samara.getUTCHours())}:${pad(samara.getUTCMinutes())}`;
+}
+
 function json(res, code, obj) {
   res.statusCode = code;
   res.setHeader('Content-Type', 'application/json');
@@ -286,6 +301,20 @@ async function handlePatch(body, req) {
       const e = new Error('status must be one of: ' + allowed.join(', ')); e.status = 400; throw e;
     }
     await sb('PATCH', `appointments?id=eq.${id}`, { status });
+
+    if (status === 'cancelled') {
+      const masterName = auth.kind === 'master' ? auth.master.name : await fetchMasterName(row.master_id);
+      const whenLabel = fmtSamaraLocal(row.scheduled_at);
+      await notifyTelegram([
+        '❌ *Запись отменена*',
+        '',
+        `*Мастер:* ${escMd(masterName) || '#' + row.master_id}`,
+        `*Услуга:* ${escMd(row.service_name) || '—'}`,
+        `*Когда:* ${escMd(whenLabel)}`,
+        row.client_name ? `*Клиент:* ${escMd(row.client_name)}` : null,
+      ]);
+    }
+
     return { ok: true, id, status };
   }
 
@@ -305,6 +334,19 @@ async function handlePatch(body, req) {
     }
     throw e;
   }
+
+  const masterName = auth.kind === 'master' ? auth.master.name : await fetchMasterName(row.master_id);
+  const oldLabel = fmtSamaraLocal(row.scheduled_at);
+  const newLabel = scheduledLocal.replace('T', ' ');
+  await notifyTelegram([
+    '🔁 *Запись перенесена*',
+    '',
+    `*Мастер:* ${escMd(masterName) || '#' + row.master_id}`,
+    `*Услуга:* ${escMd(row.service_name) || '—'}`,
+    `*Было:* ${escMd(oldLabel)}`,
+    `*Стало:* ${escMd(newLabel)}`,
+    row.client_name ? `*Клиент:* ${escMd(row.client_name)}` : null,
+  ]);
 
   return { ok: true, id, scheduled_at: newScheduledAt };
 }
