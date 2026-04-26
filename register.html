@@ -940,6 +940,7 @@
           <div class="att-service">${escapeHtml(a.service_name || '—')}<small>${escapeHtml(a.client_name || '')}</small></div>
           <div class="att-amt">${priceStr}<small style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;margin-top:4px;">
             <button type="button" class="btn-chip" onclick="openSelfComplete(${a.id})">Выполнено</button>
+            <button type="button" class="btn-chip" onclick="openReschedule(${a.id})">Перенести</button>
             <button type="button" class="btn-chip" onclick="cancelUpcoming(${a.id})">Отмена</button>
           </small></div>
           <div id="selfComplete-${a.id}" class="self-complete-form" style="display:none;flex-basis:100%;background:#faf6f9;border-radius:8px;padding:10px 12px;margin-top:6px;">
@@ -969,6 +970,18 @@
             <div style="margin-top:8px;display:flex;gap:8px;">
               <button class="btn" type="button" onclick="submitSelfComplete(${a.id})">Сохранить</button>
               <button class="btn" type="button" style="background:#eee;color:var(--ink);" onclick="closeSelfComplete(${a.id})">Отмена</button>
+            </div>
+          </div>
+          <div id="reschedule-${a.id}" class="self-complete-form" style="display:none;flex-basis:100%;background:#f3e8ee;border-radius:8px;padding:10px 12px;margin-top:6px;">
+            <div class="row">
+              <div>
+                <label class="lbl">Новые дата и время</label>
+                <input class="fld" type="datetime-local" id="reschWhen-${a.id}">
+              </div>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;">
+              <button class="btn" type="button" onclick="submitReschedule(${a.id})">Сохранить</button>
+              <button class="btn" type="button" style="background:#eee;color:var(--ink);" onclick="closeReschedule(${a.id})">Отмена</button>
             </div>
           </div>
         </li>`;
@@ -1098,6 +1111,50 @@
         if (r.status === 401) { toast('Неверный PIN, войдите снова', true); logout(); return; }
         if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
         toast('Запись отменена');
+        await loadUpcoming();
+      } catch (e) {
+        toast('Ошибка: ' + (e.message || e), true);
+      }
+    }
+
+    function openReschedule(id) {
+      const el = $('reschedule-' + id);
+      if (!el) return;
+      // Pre-fill with the current scheduled_at converted to a datetime-local value.
+      const a = state.upcoming.find(x => x.id === id);
+      if (a) {
+        const d = new Date(a.scheduled_at);
+        const pad = n => String(n).padStart(2, '0');
+        const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        $('reschWhen-' + id).value = local;
+      }
+      el.style.display = '';
+    }
+
+    function closeReschedule(id) {
+      const el = $('reschedule-' + id);
+      if (el) el.style.display = 'none';
+    }
+
+    async function submitReschedule(id) {
+      if (!session) return;
+      const when = $('reschWhen-' + id).value;
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(when)) return toast('Укажите дату и время', true);
+      try {
+        const r = await fetch('/api/appointment', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ master_id: session.masterId, pin: session.pin, id, scheduled_at_local: when }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 409) {
+          if (data.error === 'Cannot edit terminal appointment') return toast('Запись уже завершена или отменена', true);
+          return toast('Слот уже занят', true);
+        }
+        if (r.status === 401) { toast('Неверный PIN, войдите снова', true); logout(); return; }
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        toast('Запись перенесена');
+        closeReschedule(id);
         await loadUpcoming();
       } catch (e) {
         toast('Ошибка: ' + (e.message || e), true);
