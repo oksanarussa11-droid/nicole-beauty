@@ -130,6 +130,72 @@ Supabase → **SQL Editor → New query** → вставьте по очеред
 - Комиссия вычисляется сервером по `master_services.commission_master_pct` — мастер не влияет
 - `masters.pin_hash` скрыт от anon через view `masters_public`
 
+## Разработка
+
+Локальный workflow через Supabase CLI + Vercel CLI + OrbStack (Docker).
+
+### Один раз: установка тулинга
+
+```sh
+brew install supabase/tap/supabase vercel-cli orbstack
+supabase login                                          # OAuth
+supabase link --project-ref gyixkgytywjtttcnynzn        # запросит DB password
+vercel login                                            # OAuth
+vercel link                                             # выбрать проект `nicole-beauty`
+```
+
+### Локальный стек Supabase
+
+```sh
+open -a OrbStack                  # запустить Docker daemon
+supabase start                    # ~2 мин на первый pull, потом секунды
+supabase db reset                 # применит migrations/001_initial.sql … 004_*.sql
+```
+
+После `supabase start`:
+
+- API: `http://127.0.0.1:54321`
+- Postgres: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
+- Studio локально отключён (баг в образе) — используйте удалённый `supabase.com/dashboard` для SQL/UI
+
+`config.js` авто-переключается между local и prod по `location.hostname` — никаких ручных правок.
+
+### Запуск приложения локально
+
+Два варианта:
+
+```sh
+# Вариант A: только статика (без serverless функций — OCR, attendance, PIN не работают)
+python3 -m http.server 8000
+# открыть http://localhost:8000/index.html
+
+# Вариант B: полный стек с api/* функциями (нужен .env.local — создаётся автоматически при vercel link)
+vercel dev
+# открыть http://localhost:3000
+```
+
+`.env.local` уже содержит локальные значения (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD=dev`, Telegram отключён). Чтобы получить prod env vars вместо локальных: `vercel env pull .env.local --environment=production`.
+
+### Новая миграция
+
+```sh
+supabase migration new <имя>           # создаст supabase/migrations/<timestamp>_<имя>.sql
+# … редактируете SQL …
+supabase db reset                      # применит локально, проверит что не ломает существующие
+supabase db push                       # применит на prod (подтверждение y/N)
+```
+
+Миграции должны быть **идемпотентными** (`if not exists`, `or replace`, `on conflict do nothing`) — это позволяет 001-baseline + дельты сосуществовать.
+
+### Деплой
+
+Push в `main` → Vercel авто-деплой обоих проектов (admin + pro). Альтернативно:
+
+```sh
+vercel                                 # preview deploy
+vercel --prod                          # production deploy
+```
+
 ## Структура
 
 ```

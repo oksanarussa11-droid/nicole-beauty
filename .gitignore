@@ -18,3 +18,8 @@ service_role.txt
 
 # Node (in case anyone later adds tooling)
 node_modules/
+
+# Vercel CLI (project linkage is per-developer)
+.vercel/
+.vercel
+.env*.local
