@@ -737,6 +737,15 @@
       </div>
     </div>
 
+    <!-- ═══ UPCOMING APPOINTMENTS ═══ -->
+    <details class="card history-card" id="upcomingCard" style="display:none;">
+      <summary>
+        <h2>Мои записи <span id="upcomingCount" style="font-weight:400;color:var(--muted);font-size:14px;">(0)</span></h2>
+        <span class="history-caret">▾</span>
+      </summary>
+      <ul class="att-list" id="upcomingList"></ul>
+    </details>
+
     <!-- ═══ HISTORY CARD (collapsible) ═══ -->
     <details class="card history-card" id="historyCard" style="display:none;">
       <summary>
@@ -779,6 +788,7 @@
     let state = {
       masterServices: [],          // [{ service_id, price, commission_master_pct, service_name }] for the logged master
       todayAttendances: [],
+      upcoming: [],
       history: {
         loaded: false,             // becomes true after first load; reset on login/logout
         preset: 7,                 // active preset (7/14/30) or null when custom range
@@ -848,6 +858,114 @@
       if (error) throw error;
       state.todayAttendances = data || [];
       renderToday();
+    }
+
+    async function loadUpcoming() {
+      if (!session) return;
+      const nowIso = new Date().toISOString();
+      const { data, error } = await sb
+        .from('appointments')
+        .select('id, scheduled_at, service_id, service_name, estimated_price, client_name, status')
+        .eq('master_id', session.masterId)
+        .in('status', ['scheduled', 'confirmed'])
+        .gte('scheduled_at', nowIso)
+        .order('scheduled_at', { ascending: true });
+      if (error) { toast('Ошибка записей: ' + error.message, true); return; }
+      state.upcoming = data || [];
+      renderUpcoming();
+    }
+
+    function fmtUpcomingWhen(iso) {
+      const d = new Date(iso);
+      // Render in the visitor's local time; salon staff are in Samara so this is correct for them.
+      const day = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
+      const pad = n => String(n).padStart(2, '0');
+      const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      return { day, time };
+    }
+
+    function renderUpcoming() {
+      const card = $('upcomingCard');
+      const list = $('upcomingList');
+      const count = $('upcomingCount');
+      if (!session) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      count.textContent = `(${state.upcoming.length})`;
+      if (!state.upcoming.length) {
+        list.innerHTML = '<li class="att-empty">Будущих записей нет</li>';
+        return;
+      }
+      list.innerHTML = state.upcoming.map(a => {
+        const w = fmtUpcomingWhen(a.scheduled_at);
+        const priceStr = a.estimated_price != null ? fmt(a.estimated_price) : '—';
+        return `<li>
+          <div class="att-time">${escapeHtml(w.day)}<small>${w.time}</small></div>
+          <div class="att-service">${escapeHtml(a.service_name || '—')}<small>${escapeHtml(a.client_name || '')}</small></div>
+          <div class="att-amt">${priceStr}<small><button type="button" class="btn-chip" style="margin-top:4px;" onclick="openSelfComplete(${a.id})">Выполнено</button></small></div>
+          <div id="selfComplete-${a.id}" class="self-complete-form" style="display:none;flex-basis:100%;background:#faf6f9;border-radius:8px;padding:10px 12px;margin-top:6px;">
+            <div class="row">
+              <div>
+                <label class="lbl">Финальная цена, ₽</label>
+                <input class="fld" type="number" id="selfFinalPrice-${a.id}" step="50" min="0" value="${a.estimated_price ?? 0}">
+              </div>
+              <div>
+                <label class="lbl">Способ оплаты</label>
+                <select class="fld" id="selfPay-${a.id}">
+                  <option value="Наличные">Наличные</option>
+                  <option value="Карта">Карта</option>
+                  <option value="Перевод">Перевод</option>
+                </select>
+              </div>
+              <div>
+                <label class="lbl">Продукты салона</label>
+                <div class="seg-radio">
+                  <input type="radio" name="selfProd-${a.id}" id="selfProdOwn-${a.id}" value="own" checked>
+                  <label for="selfProdOwn-${a.id}">Нет</label>
+                  <input type="radio" name="selfProd-${a.id}" id="selfProdSalon-${a.id}" value="salon">
+                  <label for="selfProdSalon-${a.id}">Да</label>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;">
+              <button class="btn" type="button" onclick="submitSelfComplete(${a.id})">Сохранить</button>
+              <button class="btn" type="button" style="background:#eee;color:var(--ink);" onclick="closeSelfComplete(${a.id})">Отмена</button>
+            </div>
+          </div>
+        </li>`;
+      }).join('');
+    }
+
+    function openSelfComplete(id)  { const el = $('selfComplete-' + id); if (el) el.style.display = ''; }
+    function closeSelfComplete(id) { const el = $('selfComplete-' + id); if (el) el.style.display = 'none'; }
+
+    async function submitSelfComplete(id) {
+      const finalPrice = Number($('selfFinalPrice-' + id).value);
+      if (!(finalPrice > 0)) return toast('Укажите финальную цену', true);
+      const payMethod = $('selfPay-' + id).value;
+      const usesSalon = document.getElementById('selfProdSalon-' + id).checked;
+      try {
+        const r = await fetch('/api/appointment?action=complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            master_id: session.masterId,
+            pin: session.pin,
+            id,
+            final_price: finalPrice,
+            payment_method: payMethod,
+            uses_salon_products: usesSalon,
+          }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        toast('Запись выполнена');
+        await loadUpcoming();
+        await loadTodayAttendances();
+        // Force history to reload next time it is opened.
+        state.history.loaded = false;
+      } catch (e) {
+        toast('Ошибка: ' + (e.message || e), true);
+      }
     }
 
     function renderToday() {
@@ -1056,7 +1174,9 @@
       $('loginCard').style.display = '';
       $('entryCard').style.display = 'none';
       $('todayCard').style.display = 'none';
+      $('upcomingCard').style.display = 'none';
       $('historyCard').style.display = 'none';
+      state.upcoming = [];
       resetHistoryState();
       setMsg('');
     }
@@ -1071,6 +1191,7 @@
       setMsg('');
       try {
         await loadServicesForMaster(session.masterId);
+        await loadUpcoming();
         await loadTodayAttendances();
       } catch (e) {
         setMsg('Ошибка загрузки: ' + (e.message || e), 'err');
