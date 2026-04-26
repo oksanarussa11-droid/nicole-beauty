@@ -249,7 +249,34 @@ async function handleCreate(body, req) {
     service_name: serviceName,
   };
 }
-async function handlePatch(body, req)    { const e = new Error('not implemented'); e.status = 501; throw e; }
+async function handlePatch(body, req) {
+  // Admin-only: a master cannot change another master's status from /register.
+  // (Self-service masters complete their own bookings via ?action=complete.)
+  const adminPw = body.admin_password ? String(body.admin_password) : '';
+  if (!adminPw || !ADMIN_PASSWORD || !constantTimeEqualStr(adminPw, ADMIN_PASSWORD)) {
+    await new Promise(r => setTimeout(r, 400));
+    const e = new Error('Invalid admin password'); e.status = 401; throw e;
+  }
+
+  const id = parseInt(body.id);
+  if (!id) { const e = new Error('id is required'); e.status = 400; throw e; }
+  const status = String(body.status || '');
+  const allowed = ['confirmed', 'cancelled', 'no_show'];
+  if (!allowed.includes(status)) {
+    const e = new Error('status must be one of: ' + allowed.join(', ')); e.status = 400; throw e;
+  }
+
+  // Re-fetch first so we can refuse no-op transitions and preserve the unique-index invariant.
+  const rows = await sb('GET', `appointments?select=id,status&id=eq.${id}&limit=1`);
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row) { const e = new Error('Appointment not found'); e.status = 404; throw e; }
+  if (row.status === 'completed') {
+    const e = new Error('Cannot change status of a completed appointment'); e.status = 409; throw e;
+  }
+
+  await sb('PATCH', `appointments?id=eq.${id}`, { status });
+  return { ok: true, id, status };
+}
 async function handleComplete(body, req) { const e = new Error('not implemented'); e.status = 501; throw e; }
 
 // ─── Entry point ───────────────────────────────────────────────────
