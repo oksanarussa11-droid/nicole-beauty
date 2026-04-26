@@ -156,7 +156,99 @@ async function notifyTelegram(lines) {
 }
 
 // ─── Action handlers (filled in subsequent tasks) ──────────────────
-async function handleCreate(body, req)   { const e = new Error('not implemented'); e.status = 501; throw e; }
+async function handleCreate(body, req) {
+  const auth = await authorize(body, req);
+
+  const scheduledLocal = String(body.scheduled_at_local || '');
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledLocal)) {
+    const e = new Error('scheduled_at_local must be YYYY-MM-DDTHH:mm'); e.status = 400; throw e;
+  }
+  // Append seconds + Samara offset so Postgres reads it as the right absolute instant.
+  const scheduledAt = scheduledLocal + ':00' + SAMARA_OFFSET;
+
+  const masterId = parseInt(body.master_id);
+  const serviceId = parseInt(body.service_id);
+  if (!masterId) { const e = new Error('master_id is required'); e.status = 400; throw e; }
+  if (!serviceId) { const e = new Error('service_id is required'); e.status = 400; throw e; }
+
+  // Master-gated callers can only create for themselves.
+  if (auth.kind === 'master' && auth.masterId !== masterId) {
+    const e = new Error('Masters can only create appointments for themselves'); e.status = 403; throw e;
+  }
+
+  const estimatedPriceRaw = body.estimated_price;
+  let estimatedPrice = null;
+  if (estimatedPriceRaw !== undefined && estimatedPriceRaw !== null && estimatedPriceRaw !== '') {
+    estimatedPrice = Number(estimatedPriceRaw);
+    if (!Number.isFinite(estimatedPrice) || estimatedPrice < 0) {
+      const e = new Error('estimated_price must be a non-negative number'); e.status = 400; throw e;
+    }
+  }
+
+  const clientName = (body.client_name || '').toString().slice(0, 200) || null;
+  const clientPhone = (body.client_phone || '').toString().slice(0, 40) || null;
+  const note = (body.note || '').toString().slice(0, 500) || null;
+
+  // Validate the master+service pair exists and capture service name + sanity-check price.
+  const ms = await sb(
+    'GET',
+    `master_services?select=price,services(name)&master_id=eq.${masterId}&service_id=eq.${serviceId}&limit=1`,
+  );
+  const msRow = Array.isArray(ms) ? ms[0] : null;
+  if (!msRow) { const e = new Error('Service not configured for this master'); e.status = 422; throw e; }
+  const serviceName = msRow.services?.name || null;
+  const catalogPrice = Number(msRow.price) || 0;
+  if (estimatedPrice !== null && catalogPrice > 0 && estimatedPrice > catalogPrice * 10) {
+    const e = new Error(`estimated_price exceeds allowed range (max ${catalogPrice * 10})`); e.status = 422; throw e;
+  }
+
+  const createdBy = auth.kind === 'admin' ? 'admin' : `master:${auth.masterId}`;
+
+  let inserted;
+  try {
+    inserted = await sb('POST', 'appointments', {
+      scheduled_at: scheduledAt,
+      master_id: masterId,
+      service_id: serviceId,
+      service_name: serviceName,
+      estimated_price: estimatedPrice,
+      client_name: clientName,
+      client_phone: clientPhone,
+      note,
+      status: 'scheduled',
+      created_by: createdBy,
+    });
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      const conflictErr = new Error('Slot already booked for this master');
+      conflictErr.status = 409; throw conflictErr;
+    }
+    throw e;
+  }
+  const row = Array.isArray(inserted) ? inserted[0] : inserted;
+
+  // Telegram on create (Markdown-escaped values).
+  const masterName = auth.kind === 'master' ? auth.master.name : null;
+  const masterLabel = masterName || `#${masterId}`;
+  const whenLabel = scheduledLocal.replace('T', ' '); // e.g., "2026-04-26 14:00"
+  await notifyTelegram([
+    '📅 *Новая бронь*',
+    '',
+    `*Мастер:* ${escMd(masterLabel)}`,
+    `*Услуга:* ${escMd(serviceName) || '—'}`,
+    `*Когда:* ${escMd(whenLabel)}`,
+    clientName ? `*Клиент:* ${escMd(clientName)}` : null,
+    estimatedPrice !== null ? `_Оценка: ${estimatedPrice.toLocaleString('ru-RU')} ₽_` : null,
+  ]);
+
+  return {
+    ok: true,
+    id: row?.id,
+    scheduled_at: row?.scheduled_at,
+    status: row?.status,
+    service_name: serviceName,
+  };
+}
 async function handlePatch(body, req)    { const e = new Error('not implemented'); e.status = 501; throw e; }
 async function handleComplete(body, req) { const e = new Error('not implemented'); e.status = 501; throw e; }
 
