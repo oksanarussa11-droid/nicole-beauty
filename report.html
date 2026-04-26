@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nicole Salon — Отчёт</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap">
+<style>
+  /* Champagne palette — same tokens as index.html */
+  :root {
+    --bg:        #F6F1EA;
+    --surface:   #FFFFFF;
+    --surface-2: #FBF7F1;
+    --ink:       #1A1715;
+    --ink-soft:  #4A413B;
+    --muted:     #8A7F76;
+    --hairline:  #E8DFD3;
+    --hairline-strong: #D9CCB8;
+    --accent:    #B08D6A;
+    --accent-deep: #8E6E4F;
+    --accent-soft: #EFE3D2;
+    --gold:      #C9A77C;
+    --positive:  #6B8E5A;
+    --negative:  #A85A4F;
+    --serif: 'Cormorant Garamond', 'Source Serif 4', Georgia, serif;
+    --sans:  'DM Sans', -apple-system, 'Segoe UI', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'ss01','liga','kern';
+  }
+
+  .report {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 28px 32px 64px;
+  }
+
+  /* ── Toolbar (screen only) ───────────────────────────────── */
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    box-shadow: 0 1px 0 rgba(26,23,21,.04);
+  }
+  .toolbar .hint {
+    margin-right: auto;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: .04em;
+  }
+  .btn {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .04em;
+    padding: 9px 18px;
+    border-radius: 2px;
+    border: 1px solid var(--hairline-strong);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    transition: background .2s, border-color .2s;
+  }
+  .btn:hover { background: var(--surface-2); border-color: var(--accent); }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--surface);
+  }
+  .btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+
+  /* ── Report header ───────────────────────────────────────── */
+  .report-head {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 18px 4px 22px;
+    border-bottom: 1px solid var(--hairline);
+    margin-bottom: 28px;
+    position: relative;
+  }
+  .report-head::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--accent) 18%, var(--accent) 82%, transparent 100%);
+    opacity: .35;
+  }
+  .report-logo {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #2C2823;
+    box-shadow: 0 4px 14px -6px rgba(60,40,20,.3), inset 0 0 0 1px rgba(201,167,124,.22);
+    flex-shrink: 0;
+  }
+  .report-head .meta { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .report-head h1 {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: .42em;
+    text-transform: uppercase;
+    line-height: 1.05;
+    color: var(--ink);
+  }
+  .report-head .period {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink-soft);
+    line-height: 1.2;
+  }
+  .report-head .generated {
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ── Section / cards ─────────────────────────────────────── */
+  .section { margin-bottom: 26px; }
+  .section-break { page-break-before: always; }
+
+  .section-title {
+    font-family: var(--serif);
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: .04em;
+    color: var(--ink);
+    margin: 8px 2px 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .section-title::before {
+    content: "";
+    display: inline-block;
+    width: 4px; height: 14px;
+    background: var(--accent);
+    border-radius: 1px;
+    transform: translateY(2px);
+  }
+  .section-title small {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    font-weight: 400;
+    font-style: normal;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 0 rgba(26,23,21,.04);
+    page-break-inside: avoid;
+  }
+  .card + .card { margin-top: 16px; }
+
+  /* ── Stats grid ──────────────────────────────────────────── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    page-break-inside: avoid;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 14px 16px;
+  }
+  .stat.positive { border-left-color: var(--positive); }
+  .stat.negative { border-left-color: var(--negative); }
+  .stat.profit   { border-left-color: var(--gold); }
+  .stat .label {
+    font-size: 10.5px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .stat .value {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.005em;
+  }
+  .stat .value.neg::before { content: "− "; }
+  .stat .value.pos.profit::before { content: "+ "; }
+
+  /* ── Tables ──────────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--sans);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--hairline-strong);
+  }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  td.center, th.center { text-align: center; }
+  tr.total td {
+    font-weight: 600;
+    background: var(--surface-2);
+    border-top: 1px solid var(--hairline-strong);
+    border-bottom: 1px solid var(--hairline-strong);
+  }
+  .empty {
+    padding: 18px;
+    text-align: center;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 10.5px;
+    letter-spacing: .08em;
+    padding: 1px 6px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 2px;
+    color: var(--muted);
+  }
+
+  .footer {
+    margin-top: 28px;
+    padding-top: 14px;
+    border-top: 1px solid var(--hairline);
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .loading {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+  }
+
+  /* ── Print ───────────────────────────────────────────────── */
+  @page { size: A4 portrait; margin: 14mm 12mm; }
+
+  @media print {
+    body { background: white; font-size: 11px; }
+    .report { padding: 0; max-width: none; }
+    .no-print { display: none !important; }
+
+    .card, .stat {
+      box-shadow: none;
+      border: 1px solid #ccc;
+      page-break-inside: avoid;
+    }
+    .report-head, .stats, .section { page-break-inside: avoid; }
+    .section-title { page-break-after: avoid; }
+    table { page-break-inside: auto; font-size: 10.5px; }
+    tr     { page-break-inside: avoid; page-break-after: auto; }
+    thead  { display: table-header-group; }
+    tfoot  { display: table-footer-group; }
+
+    .report-logo {
+      box-shadow: none;
+      border: 1px solid #999;
+    }
+
+    .stat .value { font-size: 17px; }
+    .section-title { font-size: 16px; }
+    .report-head h1 { font-size: 22px; }
+    .report-head .period { font-size: 14px; }
+
+    /* Keep accent border colors visible when printing in color */
+    .stat            { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th, tr.total td  { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* Monochrome printers — fall back to outlines + symbols (no color cues) */
+  @media print and (monochrome) {
+    .stat, .stat.positive, .stat.negative, .stat.profit { border-left: 3px solid #000; }
+    th, tr.total td { background: #f3f3f3 !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="report">
+
+  <header class="report-head">
+    <img src="assets/nicole-logo.png" alt="Nicole Salon" class="report-logo" id="reportLogo">
+    <div class="meta">
+      <h1>Nicole Salon</h1>
+      <div class="period" id="periodLabel">Загрузка…</div>
+      <div class="generated" id="generatedLabel"></div>
+    </div>
+  </header>
+
+  <div class="toolbar no-print">
+    <span class="hint">Используйте «Печать» для печати или сохранения в PDF (диалог браузера → «Сохранить как PDF»).</span>
+    <button class="btn primary" onclick="window.print()">Печать</button>
+    <button class="btn" onclick="window.close()">Закрыть</button>
+  </div>
+
+  <div id="content">
+    <div class="loading">Загрузка данных…</div>
+  </div>
+
+  <footer class="footer">
+    <span>Nicole Salon · Панель управления</span>
+    <span id="footerStamp"></span>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./config.js"></script>
+<script>
+// ===================== HELPERS (mirrored from index.html) =====================
+const fmt = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0)) + ' ₽';
+const fmtNum = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
+const fmtDate = d => { if (!d) return ''; const p = d.split('-'); return `${p[2]}.${p[1]}.${p[0]}`; };
+const today = () => new Date().toISOString().split('T')[0];
+
+function inRange(dateStr, from, to) {
+  if (from && dateStr < from) return false;
+  if (to   && dateStr > to)   return false;
+  return true;
+}
+
+function escapeText(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ===================== STATE =====================
+const state = {
+  masters: [],
+  services: [],
+  daySummaries: [],
+  attendances: [],
+  income: [],
+  expenses: [],
+};
+
+const params = new URLSearchParams(location.search);
+const FROM = params.get('from') || '';
+const TO   = params.get('to')   || '';
+
+function masterName(id) {
+  const m = state.masters.find(x => x.id === id);
+  return m ? m.name : '#' + id;
+}
+function serviceName(id) {
+  const s = state.services.find(x => x.id === id);
+  return s ? s.name : '#' + id;
+}
+
+// ── unifiedTotals: SAME max-rule as index.html (source of truth).
+// Dedupes day_summaries vs attendances per (date, master) so OCR-aggregated
+// days and per-service rows don't double-count.
+function unifiedTotals(filterFn) {
+  const dsMap = new Map();
+  const attMap = new Map();
+  for (const r of state.daySummaries) {
+    if (!filterFn(r.date)) continue;
+    const k = `${r.date}|${r.master_id}`;
+    const cur = dsMap.get(k) || { revenue: 0, master_pay: 0 };
+    cur.revenue    += Number(r.revenue);
+    cur.master_pay += Number(r.master_pay);
+    dsMap.set(k, cur);
+  }
+  for (const r of state.attendances) {
+    if (!filterFn(r.date)) continue;
+    const k = `${r.date}|${r.master_id}`;
+    const cur = attMap.get(k) || { revenue: 0, master_pay: 0 };
+    cur.revenue    += Number(r.price);
+    cur.master_pay += Number(r.master_pay);
+    attMap.set(k, cur);
+  }
+  const out = [];
+  const keys = new Set([...dsMap.keys(), ...attMap.keys()]);
+  for (const k of keys) {
+    const [date, midStr] = k.split('|');
+    const ds  = dsMap.get(k)  || { revenue: 0, master_pay: 0 };
+    const att = attMap.get(k) || { revenue: 0, master_pay: 0 };
+    out.push({
+      date,
+      master_id: Number(midStr),
+      revenue:    Math.max(ds.revenue,    att.revenue),
+      master_pay: Math.max(ds.master_pay, att.master_pay),
+    });
+  }
+  return out;
+}
+
+// ===================== LOAD =====================
+async function load() {
+  if (typeof SUPABASE_URL !== 'string' || typeof SUPABASE_ANON_KEY !== 'string') {
+    document.getElementById('content').innerHTML =
+      '<div class="empty">config.js отсутствует.</div>';
+    return;
+  }
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Date range filter pushed server-side where possible (full date range).
+  const ds  = sb.from('day_summaries').select('*').order('date', { ascending: false });
+  const att = sb.from('attendances')  .select('*').order('date', { ascending: false }).order('time', { ascending: false });
+  const inc = sb.from('income')       .select('*').order('date', { ascending: false });
+  const exp = sb.from('expenses')     .select('*').order('date', { ascending: false });
+
+  // Apply range filters server-side when supplied — reduces payload.
+  if (FROM) { ds.gte('date', FROM); att.gte('date', FROM); inc.gte('date', FROM); exp.gte('date', FROM); }
+  if (TO)   { ds.lte('date', TO);   att.lte('date', TO);   inc.lte('date', TO);   exp.lte('date', TO);   }
+
+  try {
+    const [ms, sv, dsR, attR, incR, expR] = await Promise.all([
+      sb.from('masters_public').select('*').order('name'),
+      sb.from('services').select('*').order('name'),
+      ds, att, inc, exp,
+    ]);
+    for (const r of [ms, sv, dsR, attR, incR, expR]) if (r.error) throw r.error;
+    state.masters      = ms.data   || [];
+    state.services     = sv.data   || [];
+    state.daySummaries = dsR.data  || [];
+    state.attendances  = attR.data || [];
+    state.income       = incR.data || [];
+    state.expenses     = expR.data || [];
+    render();
+  } catch (e) {
+    console.error(e);
+    document.getElementById('content').innerHTML =
+      '<div class="empty">Ошибка загрузки: ' + escapeText(e.message || String(e)) + '</div>';
+  }
+}
+
+// ===================== RENDER =====================
+function render() {
+  const periodLabel  = (FROM ? fmtDate(FROM) : 'начало') + ' — ' + (TO ? fmtDate(TO) : fmtDate(today()));
+  document.getElementById('periodLabel').textContent  = 'Отчёт за период: ' + periodLabel;
+  const now = new Date();
+  const stamp = String(now.getDate()).padStart(2,'0') + '.' +
+                String(now.getMonth()+1).padStart(2,'0') + '.' +
+                now.getFullYear() + ' ' +
+                String(now.getHours()).padStart(2,'0') + ':' +
+                String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('generatedLabel').textContent = 'Сформирован: ' + stamp;
+  document.getElementById('footerStamp').textContent = stamp;
+  document.title = 'Nicole Salon — Отчёт ' + periodLabel;
+
+  const pick = d => inRange(d, FROM, TO);
+  const unified = unifiedTotals(pick);
+  const attF = state.attendances.filter(a => pick(a.date));
+  const incF = state.income.filter(i => pick(i.date));
+  const expF = state.expenses.filter(e => pick(e.date));
+
+  const totalRev    = unified.reduce((s, d) => s + d.revenue, 0);
+  const totalMaster = unified.reduce((s, d) => s + d.master_pay, 0);
+  const totalSalon  = totalRev - totalMaster;
+  const totalInc    = incF.reduce((s, i) => s + Number(i.amount), 0);
+  const totalExp    = expF.reduce((s, e) => s + Number(e.amount), 0);
+  const profit      = totalInc - totalExp;
+  const distinctDays = new Set(unified.map(u => u.date)).size;
+
+  let html = '';
+
+  // ── Stats (4 cards) ──
+  html += `<section class="section">
+    <div class="stats">
+      <div class="stat positive">
+        <div class="label">Выручка от услуг</div>
+        <div class="value">${fmt(totalRev)}</div>
+      </div>
+      <div class="stat positive">
+        <div class="label">Все доходы</div>
+        <div class="value">${fmt(totalInc)}</div>
+      </div>
+      <div class="stat negative">
+        <div class="label">Все расходы</div>
+        <div class="value">${fmt(totalExp)}</div>
+      </div>
+      <div class="stat profit">
+        <div class="label">Прибыль</div>
+        <div class="value ${profit < 0 ? 'neg' : 'pos profit'}">${fmt(Math.abs(profit))}</div>
+      </div>
+    </div>
+  </section>`;
+
+  // Auxiliary line: master/salon split + day count
+  html += `<section class="section">
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th>Показатель</th><th class="num">Значение</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>Рабочих дней с записями</td><td class="num">${distinctDays}</td></tr>
+          <tr><td>Доля мастеров (выплачено)</td><td class="num">${fmt(totalMaster)}</td></tr>
+          <tr><td>Доля салона (от услуг)</td><td class="num">${fmt(totalSalon)}</td></tr>
+          <tr><td>Записей о продажах услуг (поштучно)</td><td class="num">${fmtNum(attF.length)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>`;
+
+  // ── Per-master breakdown ──
+  const masterMap = new Map();
+  unified.forEach(d => {
+    const cur = masterMap.get(d.master_id) || { days: new Set(), revenue: 0, master_pay: 0 };
+    cur.days.add(d.date);
+    cur.revenue    += d.revenue;
+    cur.master_pay += d.master_pay;
+    masterMap.set(d.master_id, cur);
+  });
+  const mEntries = [...masterMap.entries()]
+    .map(([mid, v]) => ({ name: masterName(mid), days: v.days.size, revenue: v.revenue, master_pay: v.master_pay }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  html += `<section class="section">
+    <h2 class="section-title">Выручка по мастерам <small>${mEntries.length} ${plural(mEntries.length, 'мастер','мастера','мастеров')}</small></h2>
+    <div class="card">`;
+  if (mEntries.length === 0) {
+    html += '<div class="empty">Нет данных за период</div>';
+  } else {
+    html += `<table>
+      <thead><tr>
+        <th>Мастер</th>
+        <th class="center">Дней</th>
+        <th class="num">Выручка</th>
+        <th class="num">Мастеру</th>
+        <th class="num">Салону</th>
+      </tr></thead>
+      <tbody>
+        ${mEntries.map(m => `<tr>
+          <td>${escapeText(m.name)}</td>
+          <td class="center">${m.days}</td>
+          <td class="num">${fmt(m.revenue)}</td>
+          <td class="num">${fmt(m.master_pay)}</td>
+          <td class="num">${fmt(m.revenue - m.master_pay)}</td>
+        </tr>`).join('')}
+        <tr class="total">
+          <td>ИТОГО</td>
+          <td class="center">${distinctDays}</td>
+          <td class="num">${fmt(totalRev)}</td>
+          <td class="num">${fmt(totalMaster)}</td>
+          <td class="num">${fmt(totalSalon)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+  }
+  html += `</div></section>`;
+
+  // ── Per-service breakdown (from attendances) ──
+  const svcMap = new Map();
+  attF.forEach(a => {
+    const name = a.service_name || (a.service_id ? serviceName(a.service_id) : '—');
+    const cur = svcMap.get(name) || { count: 0, gross: 0, master: 0 };
+    cur.count += 1;
+    cur.gross += Number(a.price);
+    cur.master += Number(a.master_pay);
+    svcMap.set(name, cur);
+  });
+  const svcEntries = [...svcMap.entries()].sort((a, b) => b[1].gross - a[1].gross);
+  const svcGross  = svcEntries.reduce((s, [,v]) => s + v.gross,  0);
+  const svcMaster = svcEntries.reduce((s, [,v]) => s + v.master, 0);
+  const svcCount  = svcEntries.reduce((s, [,v]) => s + v.count,  0);
+
+  html += `<section class="section">
+    <h2 class="section-title">Услуги за период <small>агрегация записей мастеров</small></h2>
+    <div class="card">`;
+  if (svcEntries.length === 0) {
+    html += '<div class="empty">Нет поштучных записей. Данные появляются, когда мастера оформляют услуги в /register.</div>';
+  } else {
+    html += `<table>
+      <thead><tr>
+        <th>Услуга</th>
+        <th class="center">Кол-во</th>
+        <th class="num">Выручка</th>
+        <th class="num">Мастеру</th>
+        <th class="num">Салону</th>
+        <th class="num">Доля</th>
+      </tr></thead>
+      <tbody>
+        ${svcEntries.map(([name, v]) => `<tr>
+          <td>${escapeText(name)}</td>
+          <td class="center">${v.count}</td>
+          <td class="num">${fmt(v.gross)}</td>
+          <td class="num">${fmt(v.master)}</td>
+          <td class="num">${fmt(v.gross - v.master)}</td>
+          <td class="num">${svcGross > 0 ? Math.round(v.gross / svcGross * 100) : 0}%</td>
+        </tr>`).join('')}
+        <tr class="total">
+          <td>ИТОГО</td>
+          <td class="center">${svcCount}</td>
+          <td class="num">${fmt(svcGross)}</td>
+          <td class="num">${fmt(svcMaster)}</td>
+          <td class="num">${fmt(svcGross - svcMaster)}</td>
+          <td class="num">100%</td>
+        </tr>
+      </tbody>
+    </table>`;
+  }
+  html += `</div></section>`;
+
+  // ── Journal — unified per-day per-master ──
+  const sortedUnified = [...unified].sort((a, b) =>
+    b.date.localeCompare(a.date) || masterName(a.master_id).localeCompare(masterName(b.master_id), 'ru'));
+
+  html += `<section class="section section-break">
+    <h2 class="section-title">Журнал за период <small>выручка по дням и мастерам</small></h2>
+    <div class="card">`;
+  if (sortedUnified.length === 0) {
+    html += '<div class="empty">Нет записей за период</div>';
+  } else {
+    html += `<table>
+      <thead><tr>
+        <th>Дата</th>
+        <th>Мастер</th>
+        <th class="num">Выручка</th>
+        <th class="num">Мастеру</th>
+        <th class="num">Салону</th>
+      </tr></thead>
+      <tbody>
+        ${sortedUnified.map(d => `<tr>
+          <td>${fmtDate(d.date)}</td>
+          <td>${escapeText(masterName(d.master_id))}</td>
+          <td class="num">${fmt(d.revenue)}</td>
+          <td class="num">${fmt(d.master_pay)}</td>
+          <td class="num">${fmt(d.revenue - d.master_pay)}</td>
+        </tr>`).join('')}
+        <tr class="total">
+          <td colspan="2">ИТОГО · ${distinctDays} ${plural(distinctDays, 'день','дня','дней')}</td>
+          <td class="num">${fmt(totalRev)}</td>
+          <td class="num">${fmt(totalMaster)}</td>
+          <td class="num">${fmt(totalSalon)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+  }
+  html += `</div></section>`;
+
+  // ── Per-attendance journal (detailed) ──
+  if (attF.length) {
+    html += `<section class="section">
+      <h2 class="section-title">Детализация услуг <small>каждая запись из /register</small></h2>
+      <div class="card">
+        <table>
+          <thead><tr>
+            <th>Дата</th>
+            <th>Мастер</th>
+            <th>Услуга</th>
+            <th class="num">Цена</th>
+            <th class="num">Мастеру</th>
+            <th>Клиент</th>
+            <th>Оплата</th>
+          </tr></thead>
+          <tbody>
+            ${attF.map(a => `<tr>
+              <td>${fmtDate(a.date)}${a.time ? ' <span style="color:var(--muted);">'+escapeText(String(a.time).slice(0,5))+'</span>' : ''}</td>
+              <td>${escapeText(masterName(a.master_id))}</td>
+              <td>${escapeText(a.service_name || (a.service_id ? serviceName(a.service_id) : '—'))}</td>
+              <td class="num">${fmt(a.price)}</td>
+              <td class="num">${fmt(a.master_pay)}</td>
+              <td>${a.client_name ? escapeText(a.client_name) : '—'}</td>
+              <td>${a.payment_method ? `<span class="badge">${escapeText(a.payment_method)}</span>` : '—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </section>`;
+  }
+
+  // ── Finance: income + expenses ──
+  html += `<section class="section section-break">
+    <h2 class="section-title">Доходы за период <small>${fmt(totalInc)}</small></h2>
+    <div class="card">`;
+  if (incF.length === 0) {
+    html += '<div class="empty">Нет доходов за период</div>';
+  } else {
+    html += `<table>
+      <thead><tr>
+        <th>Дата</th>
+        <th>Категория</th>
+        <th>Описание</th>
+        <th>Способ</th>
+        <th class="num">Сумма</th>
+      </tr></thead>
+      <tbody>
+        ${incF.map(i => `<tr>
+          <td>${fmtDate(i.date)}</td>
+          <td>${escapeText(i.category || '')}</td>
+          <td>${escapeText(i.description || '')}</td>
+          <td>${escapeText(i.method || '')}</td>
+          <td class="num">${fmt(i.amount)}</td>
+        </tr>`).join('')}
+        <tr class="total">
+          <td colspan="4">ИТОГО</td>
+          <td class="num">${fmt(totalInc)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+  }
+  html += `</div></section>`;
+
+  html += `<section class="section">
+    <h2 class="section-title">Расходы за период <small>${fmt(totalExp)}</small></h2>
+    <div class="card">`;
+  if (expF.length === 0) {
+    html += '<div class="empty">Нет расходов за период</div>';
+  } else {
+    html += `<table>
+      <thead><tr>
+        <th>Дата</th>
+        <th>Категория</th>
+        <th>Описание</th>
+        <th>Поставщик</th>
+        <th>Статус</th>
+        <th class="num">Сумма</th>
+      </tr></thead>
+      <tbody>
+        ${expF.map(e => `<tr>
+          <td>${fmtDate(e.date)}</td>
+          <td>${escapeText(e.category || '')}</td>
+          <td>${escapeText(e.description || '')}</td>
+          <td>${escapeText(e.supplier || '')}</td>
+          <td>${escapeText(e.status || '')}</td>
+          <td class="num">${fmt(e.amount)}</td>
+        </tr>`).join('')}
+        <tr class="total">
+          <td colspan="5">ИТОГО</td>
+          <td class="num">${fmt(totalExp)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+  }
+  html += `</div></section>`;
+
+  // ── Expenses by category ──
+  const catMap = new Map();
+  expF.forEach(e => catMap.set(e.category || '—', (catMap.get(e.category || '—') || 0) + Number(e.amount)));
+  const cats = [...catMap.entries()].sort((a, b) => b[1] - a[1]);
+  if (cats.length) {
+    html += `<section class="section">
+      <h2 class="section-title">Расходы по категориям</h2>
+      <div class="card">
+        <table>
+          <thead><tr>
+            <th>Категория</th>
+            <th class="num">Сумма</th>
+            <th class="num">Доля</th>
+          </tr></thead>
+          <tbody>
+            ${cats.map(([cat, sum]) => `<tr>
+              <td>${escapeText(cat)}</td>
+              <td class="num">${fmt(sum)}</td>
+              <td class="num">${totalExp > 0 ? Math.round(sum / totalExp * 100) : 0}%</td>
+            </tr>`).join('')}
+            <tr class="total">
+              <td>ИТОГО</td>
+              <td class="num">${fmt(totalExp)}</td>
+              <td class="num">100%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>`;
+  }
+
+  // ── Profit summary card ──
+  html += `<section class="section">
+    <div class="card">
+      <table>
+        <tbody>
+          <tr><td>Все доходы</td><td class="num">${fmt(totalInc)}</td></tr>
+          <tr><td>Все расходы</td><td class="num">− ${fmt(totalExp)}</td></tr>
+          <tr class="total">
+            <td>ПРИБЫЛЬ ${profit < 0 ? '(убыток)' : ''}</td>
+            <td class="num">${profit < 0 ? '− ' : '+ '}${fmt(Math.abs(profit))}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>`;
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+  return many;
+}
+
+// Hide logo if missing rather than show broken icon
+document.getElementById('reportLogo').addEventListener('error', e => { e.target.style.display = 'none'; });
+
+load();
+</script>
+</body>
+</html>

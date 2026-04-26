@@ -1307,6 +1307,7 @@
     <button class="btn btn-sm btn-primary" onclick="setRepPreset('prevMonth')">Прошлый месяц</button>
     <button class="btn btn-sm btn-primary" onclick="setRepPreset('year')">Этот год</button>
     <button class="btn btn-sm btn-primary" onclick="setRepPreset('all')">Всё</button>
+    <button class="btn btn-sm btn-primary" onclick="openReportViewer()">Просмотр и печать</button>
     <button class="btn btn-sm" style="background:#eee;" onclick="exportReportCSV()">Экспорт CSV</button>
   </div>
 
@@ -1891,6 +1892,16 @@ function csvEscape(v) {
   if (v == null) return '';
   const s = String(v);
   return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function openReportViewer() {
+  const from = val('repFrom');
+  const to   = val('repTo');
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to)   params.set('to',   to);
+  const qs = params.toString();
+  window.open('/report' + (qs ? '?' + qs : ''), '_blank', 'noopener');
 }
 
 function exportReportCSV() {
