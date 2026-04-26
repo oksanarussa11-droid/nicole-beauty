@@ -289,8 +289,24 @@ async function handlePatch(body, req) {
     return { ok: true, id, status };
   }
 
-  // hasReschedule branch — Task 2 fills this in.
-  const e = new Error('Reschedule not yet implemented'); e.status = 501; throw e;
+  // Reschedule branch
+  const scheduledLocal = String(body.scheduled_at_local);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledLocal)) {
+    const e = new Error('scheduled_at_local must be YYYY-MM-DDTHH:mm'); e.status = 400; throw e;
+  }
+  const newScheduledAt = scheduledLocal + ':00' + SAMARA_OFFSET;
+
+  try {
+    await sb('PATCH', `appointments?id=eq.${id}`, { scheduled_at: newScheduledAt });
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      const conflictErr = new Error('Slot already booked for this master');
+      conflictErr.status = 409; throw conflictErr;
+    }
+    throw e;
+  }
+
+  return { ok: true, id, scheduled_at: newScheduledAt };
 }
 async function handleComplete(body, req) {
   const auth = await authorize(body, req);
