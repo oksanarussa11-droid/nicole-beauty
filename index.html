@@ -1071,6 +1071,7 @@
 
 <div class="tabs" id="mainTabs" style="display:none;">
   <div class="tab active" data-section="operational">Записи</div>
+  <div class="tab" data-section="schedule">Агенда</div>
   <div class="tab" data-section="finance">Финансы</div>
   <div class="tab" data-section="inventory">Продукция</div>
   <div class="tab" data-section="masters">Мастера</div>
@@ -1168,6 +1169,68 @@
       </div>
     </div>
   </details>
+</div>
+
+<!-- ==================== SCHEDULE ==================== -->
+<div class="section" id="schedule">
+
+  <div class="filter-bar">
+    <label>С:</label>
+    <input type="date" id="schFrom">
+    <label>По:</label>
+    <input type="date" id="schTo">
+    <label>Мастер:</label>
+    <select id="schMaster"><option value="">Все</option></select>
+    <label>Статус:</label>
+    <select id="schStatus">
+      <option value="active" selected>Активные</option>
+      <option value="all">Все</option>
+      <option value="completed">Завершённые</option>
+      <option value="cancelled">Отменённые</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <h2>Новая запись</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Дата и время</label>
+        <input type="datetime-local" id="apptWhen">
+      </div>
+      <div class="form-group">
+        <label>Мастер</label>
+        <select id="apptMaster" onchange="onApptMasterChange()"></select>
+      </div>
+      <div class="form-group">
+        <label>Услуга</label>
+        <select id="apptService" onchange="onApptServiceChange()"></select>
+      </div>
+      <div class="form-group">
+        <label>Оценка цены, ₽</label>
+        <input type="number" id="apptPrice" step="50" min="0">
+      </div>
+      <div class="form-group">
+        <label>Клиент</label>
+        <input type="text" id="apptClient" maxlength="200">
+      </div>
+      <div class="form-group">
+        <label>Телефон</label>
+        <input type="text" id="apptPhone" maxlength="40" inputmode="tel">
+      </div>
+      <div class="form-group" style="grid-column:1/-1;">
+        <label>Заметка</label>
+        <input type="text" id="apptNote" maxlength="500">
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <button class="btn btn-primary" onclick="createAppointment()">Создать</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Расписание</h2>
+    <div id="scheduleList"></div>
+  </div>
 </div>
 
 <!-- ==================== FINANCE ==================== -->
@@ -1379,6 +1442,7 @@ const state = {
   income: [],
   expenses: [],
   inventory: [],
+  appointments: [],
 };
 
 let sb = null;
@@ -1453,7 +1517,7 @@ async function initSupabase() {
 async function loadAll() {
   if (!sb) return;
   try {
-    const [ms, sv, mss, ds, att, inc, exp, inv] = await Promise.all([
+    const [ms, sv, mss, ds, att, inc, exp, inv, app] = await Promise.all([
       sb.from('masters_public').select('*').order('name'),
       sb.from('services').select('*').order('name'),
       sb.from('master_services').select('*'),
@@ -1462,8 +1526,9 @@ async function loadAll() {
       sb.from('income').select('*').order('date', { ascending: false }),
       sb.from('expenses').select('*').order('date', { ascending: false }),
       sb.from('inventory').select('*').order('brand').order('name'),
+      sb.from('appointments').select('*').order('scheduled_at', { ascending: true }),
     ]);
-    for (const r of [ms, sv, mss, ds, att, inc, exp, inv]) if (r.error) throw r.error;
+    for (const r of [ms, sv, mss, ds, att, inc, exp, inv, app]) if (r.error) throw r.error;
     state.masters        = ms.data  || [];
     state.services       = sv.data  || [];
     state.masterServices = mss.data || [];
@@ -1472,6 +1537,7 @@ async function loadAll() {
     state.income         = inc.data || [];
     state.expenses       = exp.data || [];
     state.inventory      = inv.data || [];
+    state.appointments   = app.data || [];
     renderAll();
   } catch (e) {
     console.error(e);
@@ -1529,11 +1595,22 @@ function showSection(id) {
 function renderAll() {
   renderDayMasterGrid();
   renderOperational();
+  renderSchedule();
   renderFinance();
   renderInventory();
   renderMasters();
   renderReports();
 }
+
+// ===================== SCHEDULE =====================
+function renderSchedule() {
+  // Implemented in Task 7. Stub keeps renderAll() from throwing during partial work.
+  const el = document.getElementById('scheduleList');
+  if (el && !el._stub) { el.innerHTML = '<p style="color:var(--muted);">Расписание ещё не реализовано.</p>'; el._stub = true; }
+}
+function onApptMasterChange()  {}
+function onApptServiceChange() {}
+async function createAppointment() { alert('not implemented yet'); }
 
 function renderDayMasterGrid() {
   const grid = document.getElementById('dayMasterGrid');
