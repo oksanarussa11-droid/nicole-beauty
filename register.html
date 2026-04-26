@@ -737,10 +737,47 @@
       </div>
     </div>
 
+    <!-- ═══ NEW APPOINTMENT FORM ═══ -->
+    <details class="card history-card" id="newApptCard" style="display:none;">
+      <summary>
+        <h2>Новая запись</h2>
+        <span class="history-caret">▾</span>
+      </summary>
+      <div class="row">
+        <div>
+          <label class="lbl">Дата и время</label>
+          <input class="fld" type="datetime-local" id="mApptWhen">
+        </div>
+        <div>
+          <label class="lbl">Услуга</label>
+          <select class="fld" id="mApptService" onchange="onMApptServiceChange()"></select>
+        </div>
+        <div>
+          <label class="lbl">Оценка цены, ₽</label>
+          <input class="fld" type="number" id="mApptPrice" step="50" min="0">
+        </div>
+        <div>
+          <label class="lbl">Клиент</label>
+          <input class="fld" type="text" id="mApptClient" maxlength="200">
+        </div>
+        <div>
+          <label class="lbl">Телефон</label>
+          <input class="fld" type="text" id="mApptPhone" maxlength="40" inputmode="tel">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="lbl">Заметка</label>
+          <input class="fld" type="text" id="mApptNote" maxlength="500">
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="btn" type="button" onclick="submitNewAppointment()">Создать</button>
+      </div>
+    </details>
+
     <!-- ═══ UPCOMING APPOINTMENTS ═══ -->
     <details class="card history-card" id="upcomingCard" style="display:none;">
       <summary>
-        <h2>Мои записи <span id="upcomingCount" style="font-weight:400;color:var(--muted);font-size:14px;">(0)</span></h2>
+        <h2>Календарь записей клиентов <span id="upcomingCount" style="font-weight:400;color:var(--muted);font-size:14px;">(0)</span></h2>
         <span class="history-caret">▾</span>
       </summary>
       <ul class="att-list" id="upcomingList"></ul>
@@ -901,7 +938,11 @@
         return `<li>
           <div class="att-time">${escapeHtml(w.day)}<small>${w.time}</small></div>
           <div class="att-service">${escapeHtml(a.service_name || '—')}<small>${escapeHtml(a.client_name || '')}</small></div>
-          <div class="att-amt">${priceStr}<small><button type="button" class="btn-chip" style="margin-top:4px;" onclick="openSelfComplete(${a.id})">Выполнено</button></small></div>
+          <div class="att-amt">${priceStr}<small style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;margin-top:4px;">
+            <button type="button" class="btn-chip" onclick="openSelfComplete(${a.id})">Выполнено</button>
+            <button type="button" class="btn-chip" onclick="openReschedule(${a.id})">Перенести</button>
+            <button type="button" class="btn-chip" onclick="cancelUpcoming(${a.id})">Отмена</button>
+          </small></div>
           <div id="selfComplete-${a.id}" class="self-complete-form" style="display:none;flex-basis:100%;background:#faf6f9;border-radius:8px;padding:10px 12px;margin-top:6px;">
             <div class="row">
               <div>
@@ -931,8 +972,96 @@
               <button class="btn" type="button" style="background:#eee;color:var(--ink);" onclick="closeSelfComplete(${a.id})">Отмена</button>
             </div>
           </div>
+          <div id="reschedule-${a.id}" class="self-complete-form" style="display:none;flex-basis:100%;background:#f3e8ee;border-radius:8px;padding:10px 12px;margin-top:6px;">
+            <div class="row">
+              <div>
+                <label class="lbl">Новые дата и время</label>
+                <input class="fld" type="datetime-local" id="reschWhen-${a.id}">
+              </div>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;">
+              <button class="btn" type="button" onclick="submitReschedule(${a.id})">Сохранить</button>
+              <button class="btn" type="button" style="background:#eee;color:var(--ink);" onclick="closeReschedule(${a.id})">Отмена</button>
+            </div>
+          </div>
         </li>`;
       }).join('');
+    }
+
+    // ─── Новая запись (master self-booking) ──────────────────────
+    function showNewApptCard() {
+      const card = $('newApptCard');
+      if (!card) return;
+      card.style.display = session ? '' : 'none';
+      if (!session) return;
+
+      // Populate the service select from masterServices.
+      const sel = $('mApptService');
+      sel.innerHTML = '<option value="">Выберите услугу…</option>' +
+        state.masterServices
+          .map(ms => `<option value="${ms.service_id}" data-price="${ms.price}">${escapeHtml(ms.service_name)}</option>`)
+          .join('');
+
+      // Default datetime to next round hour, local time.
+      const now = new Date();
+      now.setMinutes(0, 0, 0);
+      now.setHours(now.getHours() + 1);
+      const pad = n => String(n).padStart(2, '0');
+      const local = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      $('mApptWhen').value = local;
+      $('mApptWhen').min = local;
+    }
+
+    function onMApptServiceChange() {
+      const sel = $('mApptService');
+      const opt = sel.options[sel.selectedIndex];
+      const price = opt ? Number(opt.dataset.price) : 0;
+      if (price > 0) $('mApptPrice').value = price;
+    }
+
+    async function submitNewAppointment() {
+      if (!session) return;
+      const when = $('mApptWhen').value;
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(when)) return toast('Укажите дату и время', true);
+      const serviceId = parseInt($('mApptService').value);
+      if (!serviceId) return toast('Выберите услугу', true);
+      const priceRaw = $('mApptPrice').value;
+      const estimatedPrice = priceRaw === '' ? null : Number(priceRaw);
+      if (estimatedPrice !== null && (!Number.isFinite(estimatedPrice) || estimatedPrice < 0)) {
+        return toast('Цена некорректна', true);
+      }
+      const clientName = $('mApptClient').value.trim() || null;
+      const clientPhone = $('mApptPhone').value.trim() || null;
+      const note = $('mApptNote').value.trim() || null;
+
+      try {
+        const r = await fetch('/api/appointment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            master_id: session.masterId,
+            pin: session.pin,
+            scheduled_at_local: when,
+            service_id: serviceId,
+            estimated_price: estimatedPrice,
+            client_name: clientName,
+            client_phone: clientPhone,
+            note,
+          }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 409) return toast('Слот уже занят', true);
+        if (r.status === 401) { toast('Неверный PIN, войдите снова', true); logout(); return; }
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        toast('Запись создана');
+        // Clear inputs (keep datetime so the user can book another nearby slot).
+        $('mApptClient').value = '';
+        $('mApptPhone').value = '';
+        $('mApptNote').value = '';
+        await loadUpcoming();
+      } catch (e) {
+        toast('Ошибка: ' + (e.message || e), true);
+      }
     }
 
     function openSelfComplete(id)  { const el = $('selfComplete-' + id); if (el) el.style.display = ''; }
@@ -963,6 +1092,70 @@
         await loadTodayAttendances();
         // Force history to reload next time it is opened.
         state.history.loaded = false;
+      } catch (e) {
+        toast('Ошибка: ' + (e.message || e), true);
+      }
+    }
+
+    async function cancelUpcoming(id) {
+      if (!session) return;
+      if (!confirm('Отменить запись?')) return;
+      try {
+        const r = await fetch('/api/appointment', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ master_id: session.masterId, pin: session.pin, id, status: 'cancelled' }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 409) return toast(data.error === 'Cannot edit terminal appointment' ? 'Запись уже завершена или отменена' : 'Конфликт', true);
+        if (r.status === 401) { toast('Неверный PIN, войдите снова', true); logout(); return; }
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        toast('Запись отменена');
+        await loadUpcoming();
+      } catch (e) {
+        toast('Ошибка: ' + (e.message || e), true);
+      }
+    }
+
+    function openReschedule(id) {
+      const el = $('reschedule-' + id);
+      if (!el) return;
+      // Pre-fill with the current scheduled_at converted to a datetime-local value.
+      const a = state.upcoming.find(x => x.id === id);
+      if (a) {
+        const d = new Date(a.scheduled_at);
+        const pad = n => String(n).padStart(2, '0');
+        const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        $('reschWhen-' + id).value = local;
+      }
+      el.style.display = '';
+    }
+
+    function closeReschedule(id) {
+      const el = $('reschedule-' + id);
+      if (el) el.style.display = 'none';
+    }
+
+    async function submitReschedule(id) {
+      if (!session) return;
+      const when = $('reschWhen-' + id).value;
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(when)) return toast('Укажите дату и время', true);
+      try {
+        const r = await fetch('/api/appointment', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ master_id: session.masterId, pin: session.pin, id, scheduled_at_local: when }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 409) {
+          if (data.error === 'Cannot edit terminal appointment') return toast('Запись уже завершена или отменена', true);
+          return toast('Слот уже занят', true);
+        }
+        if (r.status === 401) { toast('Неверный PIN, войдите снова', true); logout(); return; }
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        toast('Запись перенесена');
+        closeReschedule(id);
+        await loadUpcoming();
       } catch (e) {
         toast('Ошибка: ' + (e.message || e), true);
       }
@@ -1174,6 +1367,7 @@
       $('loginCard').style.display = '';
       $('entryCard').style.display = 'none';
       $('todayCard').style.display = 'none';
+      $('newApptCard').style.display = 'none';
       $('upcomingCard').style.display = 'none';
       $('historyCard').style.display = 'none';
       state.upcoming = [];
@@ -1193,6 +1387,7 @@
         await loadServicesForMaster(session.masterId);
         await loadUpcoming();
         await loadTodayAttendances();
+        showNewApptCard();
       } catch (e) {
         setMsg('Ошибка загрузки: ' + (e.message || e), 'err');
       }

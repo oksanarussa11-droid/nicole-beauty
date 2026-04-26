@@ -76,6 +76,21 @@ function clientIp(req) {
 
 function escMd(s) { return String(s || '').replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1'); }
 
+async function fetchMasterName(masterId) {
+  const rows = await sb('GET', `masters?select=name&id=eq.${masterId}&limit=1`);
+  const row = Array.isArray(rows) ? rows[0] : null;
+  return row?.name || null;
+}
+
+// Convert a UTC ISO timestamp to "YYYY-MM-DD HH:mm" in Samara local time.
+function fmtSamaraLocal(isoUtc) {
+  const d = new Date(isoUtc);
+  // Samara is UTC+4, no DST.
+  const samara = new Date(d.getTime() + 4 * 3600 * 1000);
+  const pad = n => String(n).padStart(2, '0');
+  return `${samara.getUTCFullYear()}-${pad(samara.getUTCMonth() + 1)}-${pad(samara.getUTCDate())} ${pad(samara.getUTCHours())}:${pad(samara.getUTCMinutes())}`;
+}
+
 function json(res, code, obj) {
   res.statusCode = code;
   res.setHeader('Content-Type', 'application/json');
@@ -250,32 +265,90 @@ async function handleCreate(body, req) {
   };
 }
 async function handlePatch(body, req) {
-  // Admin-only: a master cannot change another master's status from /register.
-  // (Self-service masters complete their own bookings via ?action=complete.)
-  const adminPw = body.admin_password ? String(body.admin_password) : '';
-  if (!adminPw || !ADMIN_PASSWORD || !constantTimeEqualStr(adminPw, ADMIN_PASSWORD)) {
-    await new Promise(r => setTimeout(r, 400));
-    const e = new Error('Invalid admin password'); e.status = 401; throw e;
-  }
+  const auth = await authorize(body, req);
 
   const id = parseInt(body.id);
   if (!id) { const e = new Error('id is required'); e.status = 400; throw e; }
-  const status = String(body.status || '');
-  const allowed = ['confirmed', 'cancelled', 'no_show'];
-  if (!allowed.includes(status)) {
-    const e = new Error('status must be one of: ' + allowed.join(', ')); e.status = 400; throw e;
+
+  const hasStatus = body.status !== undefined && body.status !== null && body.status !== '';
+  const hasReschedule = body.scheduled_at_local !== undefined && body.scheduled_at_local !== null && body.scheduled_at_local !== '';
+  if (hasStatus === hasReschedule) {
+    const e = new Error('Exactly one of status or scheduled_at_local required'); e.status = 400; throw e;
   }
 
   // Re-fetch first so we can refuse no-op transitions and preserve the unique-index invariant.
-  const rows = await sb('GET', `appointments?select=id,status&id=eq.${id}&limit=1`);
+  const rows = await sb('GET', `appointments?select=id,master_id,scheduled_at,status,service_name,client_name&id=eq.${id}&limit=1`);
   const row = Array.isArray(rows) ? rows[0] : null;
   if (!row) { const e = new Error('Appointment not found'); e.status = 404; throw e; }
-  if (row.status === 'completed') {
-    const e = new Error('Cannot change status of a completed appointment'); e.status = 409; throw e;
+  if (!['scheduled', 'confirmed'].includes(row.status)) {
+    const e = new Error('Cannot edit terminal appointment'); e.status = 409; throw e;
   }
 
-  await sb('PATCH', `appointments?id=eq.${id}`, { status });
-  return { ok: true, id, status };
+  // Master can only touch their own row, and only to cancel.
+  if (auth.kind === 'master') {
+    if (row.master_id !== auth.masterId) {
+      const e = new Error('This appointment belongs to another master'); e.status = 403; throw e;
+    }
+    if (hasStatus && String(body.status) !== 'cancelled') {
+      const e = new Error('Master can only cancel'); e.status = 403; throw e;
+    }
+  }
+
+  if (hasStatus) {
+    const status = String(body.status);
+    const allowed = ['confirmed', 'cancelled', 'no_show'];
+    if (!allowed.includes(status)) {
+      const e = new Error('status must be one of: ' + allowed.join(', ')); e.status = 400; throw e;
+    }
+    await sb('PATCH', `appointments?id=eq.${id}`, { status });
+
+    if (status === 'cancelled') {
+      const masterName = auth.kind === 'master' ? auth.master.name : await fetchMasterName(row.master_id);
+      const whenLabel = fmtSamaraLocal(row.scheduled_at);
+      await notifyTelegram([
+        '❌ *Запись отменена*',
+        '',
+        `*Мастер:* ${escMd(masterName) || '#' + row.master_id}`,
+        `*Услуга:* ${escMd(row.service_name) || '—'}`,
+        `*Когда:* ${escMd(whenLabel)}`,
+        row.client_name ? `*Клиент:* ${escMd(row.client_name)}` : null,
+      ]);
+    }
+
+    return { ok: true, id, status };
+  }
+
+  // Reschedule branch
+  const scheduledLocal = String(body.scheduled_at_local);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledLocal)) {
+    const e = new Error('scheduled_at_local must be YYYY-MM-DDTHH:mm'); e.status = 400; throw e;
+  }
+  const newScheduledAt = scheduledLocal + ':00' + SAMARA_OFFSET;
+
+  try {
+    await sb('PATCH', `appointments?id=eq.${id}`, { scheduled_at: newScheduledAt });
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      const conflictErr = new Error('Slot already booked for this master');
+      conflictErr.status = 409; throw conflictErr;
+    }
+    throw e;
+  }
+
+  const masterName = auth.kind === 'master' ? auth.master.name : await fetchMasterName(row.master_id);
+  const oldLabel = fmtSamaraLocal(row.scheduled_at);
+  const newLabel = scheduledLocal.replace('T', ' ');
+  await notifyTelegram([
+    '🔁 *Запись перенесена*',
+    '',
+    `*Мастер:* ${escMd(masterName) || '#' + row.master_id}`,
+    `*Услуга:* ${escMd(row.service_name) || '—'}`,
+    `*Было:* ${escMd(oldLabel)}`,
+    `*Стало:* ${escMd(newLabel)}`,
+    row.client_name ? `*Клиент:* ${escMd(row.client_name)}` : null,
+  ]);
+
+  return { ok: true, id, scheduled_at: newScheduledAt };
 }
 async function handleComplete(body, req) {
   const auth = await authorize(body, req);
