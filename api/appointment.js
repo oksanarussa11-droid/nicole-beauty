@@ -277,7 +277,103 @@ async function handlePatch(body, req) {
   await sb('PATCH', `appointments?id=eq.${id}`, { status });
   return { ok: true, id, status };
 }
-async function handleComplete(body, req) { const e = new Error('not implemented'); e.status = 501; throw e; }
+async function handleComplete(body, req) {
+  const auth = await authorize(body, req);
+
+  const id = parseInt(body.id);
+  if (!id) { const e = new Error('id is required'); e.status = 400; throw e; }
+  const finalPrice = Number(body.final_price);
+  if (!(finalPrice > 0) || !Number.isFinite(finalPrice)) {
+    const e = new Error('final_price must be a positive number'); e.status = 400; throw e;
+  }
+  const paymentMethod = (body.payment_method || '').toString().slice(0, 40) || null;
+  const usesSalonProducts = body.uses_salon_products === true;
+
+  // For master-gated callers, refuse if the appointment isn't theirs.
+  if (auth.kind === 'master') {
+    const rows = await sb('GET', `appointments?select=master_id&id=eq.${id}&limit=1`);
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) { const e = new Error('Appointment not found'); e.status = 404; throw e; }
+    if (row.master_id !== auth.masterId) {
+      const e = new Error('This appointment belongs to another master'); e.status = 403; throw e;
+    }
+  }
+
+  // Look up appointment + master_services in two GETs (no PostgREST embed since
+  // appointments has no FK to master_services).
+  const apptArr = await sb(
+    'GET',
+    `appointments?select=master_id,service_id,service_name,scheduled_at,client_name&id=eq.${id}&limit=1`,
+  );
+  const apptRow = Array.isArray(apptArr) ? apptArr[0] : null;
+  if (!apptRow) { const e = new Error('Appointment not found'); e.status = 404; throw e; }
+  const msArr = await sb(
+    'GET',
+    `master_services?select=price,commission_master_pct,commission_master_pct_salon,services(name)&master_id=eq.${apptRow.master_id}&service_id=eq.${apptRow.service_id}&limit=1`,
+  );
+  const msRow = Array.isArray(msArr) ? msArr[0] : null;
+  if (!msRow) { const e = new Error('Service not configured for this master'); e.status = 422; throw e; }
+  // Sanity-bound the final price (10× catalog) — same posture as /api/attendance.
+  const catalogPrice = Number(msRow.price) || 0;
+  if (catalogPrice > 0 && finalPrice > catalogPrice * 10) {
+    const e = new Error(`final_price exceeds allowed range (max ${catalogPrice * 10})`); e.status = 422; throw e;
+  }
+
+  // RPC call (atomic insert+update).
+  let attendanceId;
+  try {
+    const rpcResult = await sb(
+      'POST',
+      'rpc/complete_appointment',
+      {
+        p_appt_id: id,
+        p_final_price: finalPrice,
+        p_payment_method: paymentMethod,
+        p_uses_salon_products: usesSalonProducts,
+      },
+      { prefer: 'return=representation' },
+    );
+    // RPC returning bigint comes back as a JSON number (or array, depending on Prefer).
+    attendanceId = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+  } catch (e) {
+    // Re-raise with friendly status if the RPC threw on status check.
+    if (e.body && /cannot complete/.test(e.body)) {
+      const conflictErr = new Error('Appointment is not in a completable state'); conflictErr.status = 409; throw conflictErr;
+    }
+    throw e;
+  }
+
+  // Compute master pay for the Telegram message (mirrors what RPC computed).
+  const commissionPct = usesSalonProducts ? Number(msRow.commission_master_pct_salon) : Number(msRow.commission_master_pct);
+  const masterPay = Math.round(finalPrice * commissionPct) / 100;
+  const serviceName = apptRow.service_name || msRow.services?.name || null;
+
+  // Look up master name for the message.
+  let masterName = auth.kind === 'master' ? auth.master.name : null;
+  if (!masterName) {
+    const mm = await sb('GET', `masters?select=name&id=eq.${apptRow.master_id}&limit=1`);
+    masterName = (Array.isArray(mm) && mm[0]?.name) || `#${apptRow.master_id}`;
+  }
+
+  await notifyTelegram([
+    '✅ *Бронь выполнена*',
+    '',
+    `*Мастер:* ${escMd(masterName)}`,
+    `*Услуга:* ${escMd(serviceName) || '—'}`,
+    `*Цена:* ${finalPrice.toLocaleString('ru-RU')} ₽`,
+    `*Мастеру:* ${masterPay.toLocaleString('ru-RU')} ₽ (${commissionPct}%)`,
+    apptRow.client_name ? `*Клиент:* ${escMd(apptRow.client_name)}` : null,
+    paymentMethod ? `*Оплата:* ${escMd(paymentMethod)}` : null,
+  ]);
+
+  return {
+    ok: true,
+    appointment_id: id,
+    attendance_id: attendanceId,
+    master_pay: masterPay,
+    commission_pct: commissionPct,
+  };
+}
 
 // ─── Entry point ───────────────────────────────────────────────────
 module.exports = async (req, res) => {
