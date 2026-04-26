@@ -972,6 +972,82 @@
       }).join('');
     }
 
+    // ─── Новая запись (master self-booking) ──────────────────────
+    function showNewApptCard() {
+      const card = $('newApptCard');
+      if (!card) return;
+      card.style.display = session ? '' : 'none';
+      if (!session) return;
+
+      // Populate the service select from masterServices.
+      const sel = $('mApptService');
+      sel.innerHTML = '<option value="">Выберите услугу…</option>' +
+        state.masterServices
+          .map(ms => `<option value="${ms.service_id}" data-price="${ms.price}">${escapeHtml(ms.service_name)}</option>`)
+          .join('');
+
+      // Default datetime to next round hour, local time.
+      const now = new Date();
+      now.setMinutes(0, 0, 0);
+      now.setHours(now.getHours() + 1);
+      const pad = n => String(n).padStart(2, '0');
+      const local = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      $('mApptWhen').value = local;
+      $('mApptWhen').min = local;
+    }
+
+    function onMApptServiceChange() {
+      const sel = $('mApptService');
+      const opt = sel.options[sel.selectedIndex];
+      const price = opt ? Number(opt.dataset.price) : 0;
+      if (price > 0) $('mApptPrice').value = price;
+    }
+
+    async function submitNewAppointment() {
+      if (!session) return;
+      const when = $('mApptWhen').value;
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(when)) return toast('Укажите дату и время', true);
+      const serviceId = parseInt($('mApptService').value);
+      if (!serviceId) return toast('Выберите услугу', true);
+      const priceRaw = $('mApptPrice').value;
+      const estimatedPrice = priceRaw === '' ? null : Number(priceRaw);
+      if (estimatedPrice !== null && (!Number.isFinite(estimatedPrice) || estimatedPrice < 0)) {
+        return toast('Цена некорректна', true);
+      }
+      const clientName = $('mApptClient').value.trim() || null;
+      const clientPhone = $('mApptPhone').value.trim() || null;
+      const note = $('mApptNote').value.trim() || null;
+
+      try {
+        const r = await fetch('/api/appointment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            master_id: session.masterId,
+            pin: session.pin,
+            scheduled_at_local: when,
+            service_id: serviceId,
+            estimated_price: estimatedPrice,
+            client_name: clientName,
+            client_phone: clientPhone,
+            note,
+          }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 409) return toast('Слот уже занят', true);
+        if (r.status === 401) { toast('Неверный PIN, войдите снова', true); logout(); return; }
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        toast('Запись создана');
+        // Clear inputs (keep datetime so the user can book another nearby slot).
+        $('mApptClient').value = '';
+        $('mApptPhone').value = '';
+        $('mApptNote').value = '';
+        await loadUpcoming();
+      } catch (e) {
+        toast('Ошибка: ' + (e.message || e), true);
+      }
+    }
+
     function openSelfComplete(id)  { const el = $('selfComplete-' + id); if (el) el.style.display = ''; }
     function closeSelfComplete(id) { const el = $('selfComplete-' + id); if (el) el.style.display = 'none'; }
 
@@ -1211,6 +1287,7 @@
       $('loginCard').style.display = '';
       $('entryCard').style.display = 'none';
       $('todayCard').style.display = 'none';
+      $('newApptCard').style.display = 'none';
       $('upcomingCard').style.display = 'none';
       $('historyCard').style.display = 'none';
       state.upcoming = [];
@@ -1230,6 +1307,7 @@
         await loadServicesForMaster(session.masterId);
         await loadUpcoming();
         await loadTodayAttendances();
+        showNewApptCard();
       } catch (e) {
         setMsg('Ошибка загрузки: ' + (e.message || e), 'err');
       }
