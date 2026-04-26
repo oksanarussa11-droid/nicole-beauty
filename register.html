@@ -737,6 +737,43 @@
       </div>
     </div>
 
+    <!-- ═══ NEW APPOINTMENT FORM ═══ -->
+    <details class="card history-card" id="newApptCard" style="display:none;">
+      <summary>
+        <h2>Новая запись</h2>
+        <span class="history-caret">▾</span>
+      </summary>
+      <div class="row">
+        <div>
+          <label class="lbl">Дата и время</label>
+          <input class="fld" type="datetime-local" id="mApptWhen">
+        </div>
+        <div>
+          <label class="lbl">Услуга</label>
+          <select class="fld" id="mApptService" onchange="onMApptServiceChange()"></select>
+        </div>
+        <div>
+          <label class="lbl">Оценка цены, ₽</label>
+          <input class="fld" type="number" id="mApptPrice" step="50" min="0">
+        </div>
+        <div>
+          <label class="lbl">Клиент</label>
+          <input class="fld" type="text" id="mApptClient" maxlength="200">
+        </div>
+        <div>
+          <label class="lbl">Телефон</label>
+          <input class="fld" type="text" id="mApptPhone" maxlength="40" inputmode="tel">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="lbl">Заметка</label>
+          <input class="fld" type="text" id="mApptNote" maxlength="500">
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="btn" type="button" onclick="submitNewAppointment()">Создать</button>
+      </div>
+    </details>
+
     <!-- ═══ UPCOMING APPOINTMENTS ═══ -->
     <details class="card history-card" id="upcomingCard" style="display:none;">
       <summary>
