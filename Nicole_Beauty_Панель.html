@@ -146,45 +146,6 @@
   </div>
 
   <div class="card">
-    <h2>Итог дня</h2>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Дата</label>
-        <input type="date" id="dayDate">
-      </div>
-    </div>
-    <div class="master-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;">
-      <div style="background:#f4f8f4;border-radius:10px;padding:14px;">
-        <h3 style="margin-bottom:3px;color:#70AD47;font-size:15px;">Людмила</h3>
-        <p style="color:#999;font-size:11px;margin-bottom:8px;">Стрижка 50/50 | Окрашивание 40/60</p>
-        <div class="form-group" style="margin-bottom:6px;">
-          <label>Выручка</label>
-          <input type="number" id="dayRevLudmila" placeholder="0">
-        </div>
-        <div class="form-group">
-          <label>Доля мастера</label>
-          <input type="number" id="dayPayLudmila" placeholder="0">
-        </div>
-      </div>
-      <div style="background:#f8f4f7;border-radius:10px;padding:14px;">
-        <h3 style="margin-bottom:3px;color:#8B5E83;font-size:15px;">Ирина</h3>
-        <p style="color:#999;font-size:11px;margin-bottom:8px;">&nbsp;</p>
-        <div class="form-group" style="margin-bottom:6px;">
-          <label>Выручка</label>
-          <input type="number" id="dayRevIrina" placeholder="0">
-        </div>
-        <div class="form-group">
-          <label>Доля мастера</label>
-          <input type="number" id="dayPayIrina" placeholder="0">
-        </div>
-      </div>
-    </div>
-    <div style="margin-top:10px;">
-      <button class="btn btn-primary" onclick="addDaySummary()">Сохранить итог дня</button>
-    </div>
-  </div>
-
-  <div class="card">
     <h2>Журнал по дням</h2>
     <table>
       <thead>
@@ -210,10 +171,18 @@
 
   <div class="month-filter">
     <label>Месяц:</label>
-    <input type="month" id="finMonth" onchange="renderAll()">
+    <input type="month" id="finMonth" onchange="refreshFinanceFromCloud()">
   </div>
 
   <div class="stats" id="finStats"></div>
+
+  <div class="card">
+    <h2>Выручка от услуг <span style="font-weight:400;color:#999;font-size:12px;">(авто из записей мастеров)</span></h2>
+    <table>
+      <thead><tr><th>Дата</th><th>Мастер</th><th>Услуга</th><th>Оплата</th><th>Итого</th><th>Мастеру</th><th>Салону</th></tr></thead>
+      <tbody id="autoIncTable"></tbody>
+    </table>
+  </div>
 
   <div class="card">
     <h2>Новый доход</h2>
@@ -333,6 +302,8 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./config.js"></script>
 <script>
 // ====== DATA ======
 const data = {
@@ -343,6 +314,7 @@ const data = {
   daySummaries: [],
   income: [],
   expenses: [],
+  attendances: [], // auto-loaded from Supabase per selected finance month
   inventory: [
     { cat:'Constant Delight', name:'Краска для волос' },
     { cat:'Constant Delight', name:'Оксид 6%' },
@@ -356,6 +328,41 @@ const data = {
     { cat:'Matrix', name:'Маска Total Results' },
   ],
 };
+
+// ====== SUPABASE ======
+let sb = null;
+function initSupabase() {
+  if (typeof SUPABASE_URL === 'string' && typeof SUPABASE_ANON_KEY === 'string' && window.supabase) {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+}
+
+async function loadAttendancesForMonth(month) {
+  if (!sb || !month) { data.attendances = []; return; }
+  const from = month + '-01';
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const to = `${month}-${String(lastDay).padStart(2,'0')}`;
+  const { data: rows, error } = await sb
+    .from('attendances')
+    .select('date, time, service_name, price, master_pay, payment_method, master_id, masters!inner(name)')
+    .gte('date', from).lte('date', to)
+    .order('date', { ascending: false }).order('time', { ascending: false });
+  if (error) { console.warn('attendances load failed:', error.message); data.attendances = []; return; }
+  data.attendances = (rows || []).map(r => ({
+    date: r.date, time: r.time,
+    service_name: r.service_name,
+    price: r.price, master_pay: r.master_pay,
+    payment_method: r.payment_method,
+    master_name: r.masters?.name || '',
+  }));
+}
+
+async function refreshFinanceFromCloud() {
+  const month = getMonth('finMonth');
+  await loadAttendancesForMonth(month);
+  renderFinance();
+}
 
 // ====== HELPERS ======
 const fmt = n => new Intl.NumberFormat('ru-RU').format(n) + ' ₽';
@@ -514,17 +521,48 @@ function renderFinance() {
   const month = getMonth('finMonth');
   const incF = data.income.filter(i => matchMonth(i.date, month));
   const expF = data.expenses.filter(e => matchMonth(e.date, month));
+  const attF = data.attendances.filter(a => matchMonth(a.date, month));
 
-  const totalInc = incF.reduce((s, i) => s + i.amount, 0);
+  const autoServices = attF.reduce((s, a) => s + Number(a.price || 0), 0);
+  const autoSalon    = attF.reduce((s, a) => s + (Number(a.price || 0) - Number(a.master_pay || 0)), 0);
+  const autoMasters  = autoServices - autoSalon;
+  const totalIncManual = incF.reduce((s, i) => s + i.amount, 0);
+  const totalInc = totalIncManual + autoSalon;
   const totalExp = expF.reduce((s, e) => s + e.amount, 0);
   const unpaid = expF.filter(e => e.status === 'Не оплачено').reduce((s, e) => s + e.amount, 0);
 
   document.getElementById('finStats').innerHTML = `
-    <div class="stat-card green"><div class="stat-label">Доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
+    <div class="stat-card green"><div class="stat-label">Услуги (выручка)</div><div class="stat-value">${fmt(autoServices)}</div></div>
+    <div class="stat-card orange"><div class="stat-label">Мастерам</div><div class="stat-value">${fmt(autoMasters)}</div></div>
+    <div class="stat-card green"><div class="stat-label">Салону от услуг</div><div class="stat-value">${fmt(autoSalon)}</div></div>
+    <div class="stat-card green"><div class="stat-label">Прочие доходы</div><div class="stat-value">${fmt(totalIncManual)}</div></div>
     <div class="stat-card red"><div class="stat-label">Расходы</div><div class="stat-value">${fmt(totalExp)}</div></div>
     <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(totalInc - totalExp)}</div></div>
     <div class="stat-card orange"><div class="stat-label">Не оплачено</div><div class="stat-value">${fmt(unpaid)}</div></div>
   `;
+
+  const autoTbody = document.getElementById('autoIncTable');
+  if (autoTbody) {
+    autoTbody.innerHTML = attF.length === 0
+      ? '<tr><td colspan="7" class="empty-msg">Нет записей за месяц</td></tr>'
+      : attF.slice().sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time)).map(a => {
+          const salon = Number(a.price||0) - Number(a.master_pay||0);
+          return `<tr>
+            <td>${fmtDate(a.date)} ${(a.time||'').slice(0,5)}</td>
+            <td>${a.master_name || '—'}</td>
+            <td>${a.service_name || '—'}</td>
+            <td>${a.payment_method || ''}</td>
+            <td>${fmt(a.price||0)}</td>
+            <td>${fmt(a.master_pay||0)}</td>
+            <td>${fmt(salon)}</td>
+          </tr>`;
+        }).join('') + `<tr style="font-weight:bold;background:#f8f4f7">
+          <td colspan="4">ИТОГО</td>
+          <td>${fmt(autoServices)}</td>
+          <td>${fmt(autoMasters)}</td>
+          <td>${fmt(autoSalon)}</td>
+        </tr>`;
+  }
 
   document.getElementById('incTable').innerHTML = incF.length === 0
     ? '<tr><td colspan="6" class="empty-msg">Нет доходов</td></tr>'
@@ -654,23 +692,6 @@ function renderReports() {
 }
 
 // ====== ACTIONS ======
-function addDaySummary() {
-  const date = document.getElementById('dayDate').value || today();
-  const revL = parseInt(document.getElementById('dayRevLudmila').value) || 0;
-  const payL = parseInt(document.getElementById('dayPayLudmila').value) || 0;
-  const revI = parseInt(document.getElementById('dayRevIrina').value) || 0;
-  const payI = parseInt(document.getElementById('dayPayIrina').value) || 0;
-  if (!revL && !revI) return alert('Укажите выручку хотя бы одного мастера!');
-  if (revL) data.daySummaries.push({ date, master: 'Людмила', revenue: revL, masterPay: payL });
-  if (revI) data.daySummaries.push({ date, master: 'Ирина', revenue: revI, masterPay: payI });
-  document.getElementById('dayRevLudmila').value = '';
-  document.getElementById('dayPayLudmila').value = '';
-  document.getElementById('dayRevIrina').value = '';
-  document.getElementById('dayPayIrina').value = '';
-  toast('Итог дня сохранён!');
-  renderAll();
-}
-
 function addIncome() {
   const date = document.getElementById('incDate').value || today();
   const cat = document.getElementById('incCat').value;
@@ -718,13 +739,14 @@ function delInv(i) { if (confirmDel('Удалить этот продукт?')) 
 
 // ====== INIT ======
 document.getElementById('todayDate').textContent = new Date().toLocaleDateString('ru-RU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-document.getElementById('dayDate').value = today();
 document.getElementById('incDate').value = today();
 document.getElementById('expDate').value = today();
 document.getElementById('opMonth').value = thisMonth();
 document.getElementById('finMonth').value = thisMonth();
 document.getElementById('repMonth').value = thisMonth();
+initSupabase();
 renderAll();
+refreshFinanceFromCloud();
 </script>
 </body>
 </html>
