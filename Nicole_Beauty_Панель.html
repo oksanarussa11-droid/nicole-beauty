@@ -345,8 +345,9 @@ async function loadAttendancesForMonth(month) {
   const to = `${month}-${String(lastDay).padStart(2,'0')}`;
   const { data: rows, error } = await sb
     .from('attendances')
-    .select('date, time, service_name, price, master_pay, payment_method, master_id, masters!inner(name)')
+    .select('date, time, service_name, price, master_pay, payment_method, master_id, deleted_at, edited_at, masters!inner(name)')
     .gte('date', from).lte('date', to)
+    .is('deleted_at', null)
     .order('date', { ascending: false }).order('time', { ascending: false });
   if (error) { console.warn('attendances load failed:', error.message); data.attendances = []; return; }
   data.attendances = (rows || []).map(r => ({

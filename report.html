@@ -446,7 +446,7 @@ async function load() {
 
   // Date range filter pushed server-side where possible (full date range).
   const ds  = sb.from('day_summaries').select('*').order('date', { ascending: false });
-  const att = sb.from('attendances')  .select('*').order('date', { ascending: false }).order('time', { ascending: false });
+  const att = sb.from('attendances')  .select('*').is('deleted_at', null).order('date', { ascending: false }).order('time', { ascending: false });
   const inc = sb.from('income')       .select('*').order('date', { ascending: false });
   const exp = sb.from('expenses')     .select('*').order('date', { ascending: false });
 
