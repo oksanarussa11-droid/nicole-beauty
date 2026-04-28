@@ -94,6 +94,23 @@
     .header-actions button { padding: 5px 10px; font-size: 11px; }
     .btn { padding: 8px 16px; font-size: 12px; }
   }
+.ns-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.ns-modal{background:#fff;border-radius:12px;padding:20px;max-width:520px;width:92%;box-shadow:0 10px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
+.ns-modal h3{margin:0 0 8px;color:#8B5E83}
+.ns-muted{color:#666;font-size:13px;margin:0 0 12px}
+.ns-modal label{display:block;font-size:12px;color:#666;margin-top:8px}
+.ns-modal input,.ns-modal select,.ns-modal textarea{width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;margin:4px 0;font-size:14px;box-sizing:border-box}
+.ns-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.ns-modal-actions button{padding:8px 14px;border-radius:6px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer}
+.ns-modal-actions button.primary{background:#8B5E83;color:#fff;border-color:#8B5E83}
+.ns-modal-actions button.danger{background:#dc2626;color:#fff;border-color:#dc2626}
+.ns-err{color:#b91c1c;font-size:13px;margin:6px 0}
+.ns-edit-badge{position:fixed;bottom:14px;right:14px;background:#fef3c7;border:1px solid #f59e0b;border-radius:20px;padding:6px 12px;display:flex;gap:8px;align-items:center;z-index:900;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.ns-edit-badge button{background:transparent;border:0;cursor:pointer;font-size:14px}
+.ns-row-actions{display:inline-flex;gap:4px}
+.ns-row-actions button{background:transparent;border:0;cursor:pointer;padding:2px 4px;font-size:14px;opacity:.6}
+.ns-row-actions button:hover{opacity:1}
+.ns-row-deleted{opacity:.45;text-decoration:line-through}
 </style>
 </head>
 <body>
@@ -748,6 +765,86 @@ document.getElementById('repMonth').value = thisMonth();
 initSupabase();
 renderAll();
 refreshFinanceFromCloud();
+
+// ─── Admin edit-mode state ─────────────────────────────────────────
+const adminEdit = {
+  expiresAt: 0,
+  tickHandle: null,
+  isUnlocked() { return Date.now() / 1000 < this.expiresAt; },
+  unlock(expSeconds) {
+    this.expiresAt = expSeconds || (Math.floor(Date.now()/1000) + 15*60);
+    this._renderBadge();
+    if (!this.tickHandle) this.tickHandle = setInterval(() => this._renderBadge(), 30 * 1000);
+  },
+  lock() {
+    this.expiresAt = 0;
+    if (this.tickHandle) { clearInterval(this.tickHandle); this.tickHandle = null; }
+    this._renderBadge();
+    fetch('/api/admin-session?end=1', { method: 'POST', credentials: 'same-origin' }).catch(()=>{});
+  },
+  _renderBadge() {
+    const el = document.getElementById('adminEditBadge');
+    if (!el) return;
+    if (!this.isUnlocked()) { el.hidden = true; return; }
+    el.hidden = false;
+    const minsLeft = Math.max(0, Math.ceil((this.expiresAt - Date.now()/1000) / 60));
+    document.getElementById('adminEditBadgeTxt').textContent = `🔓 Режим правки активен (осталось ${minsLeft} мин)`;
+  },
+};
+
+function ensureAdminEditMode() {
+  if (adminEdit.isUnlocked()) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const modal = document.getElementById('adminUnlockModal');
+    const pwd   = document.getElementById('adminUnlockPwd');
+    const err   = document.getElementById('adminUnlockErr');
+    const ok    = document.getElementById('adminUnlockOk');
+    const cancel= document.getElementById('adminUnlockCancel');
+    pwd.value = ''; err.hidden = true; modal.hidden = false; setTimeout(()=>pwd.focus(), 30);
+    const close = (result) => {
+      modal.hidden = true;
+      ok.onclick = null; cancel.onclick = null; pwd.onkeydown = null;
+      resolve(result);
+    };
+    ok.onclick = async () => {
+      ok.disabled = true;
+      try {
+        const r = await fetch('/api/admin-session', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ admin_password: pwd.value }),
+        });
+        const j = await r.json().catch(()=>({}));
+        if (!r.ok) { err.textContent = j.error || 'Ошибка'; err.hidden = false; ok.disabled = false; return; }
+        adminEdit.unlock(j.expires_at);
+        close(true);
+      } catch (e) { err.textContent = String(e.message || e); err.hidden = false; ok.disabled = false; }
+    };
+    cancel.onclick = () => close(false);
+    pwd.onkeydown = (e) => { if (e.key === 'Enter') ok.click(); };
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const lockBtn = document.getElementById('adminEditLockBtn');
+  if (lockBtn) lockBtn.onclick = () => adminEdit.lock();
+});
 </script>
+<div id="adminUnlockModal" class="ns-modal-backdrop" hidden>
+  <div class="ns-modal">
+    <h3>Режим правки</h3>
+    <p class="ns-muted">Введите пароль администратора для разблокировки правок на 15 минут.</p>
+    <input id="adminUnlockPwd" type="password" autocomplete="off" placeholder="Пароль" />
+    <div id="adminUnlockErr" class="ns-err" hidden></div>
+    <div class="ns-modal-actions">
+      <button type="button" id="adminUnlockCancel">Отмена</button>
+      <button type="button" id="adminUnlockOk" class="primary">Разблокировать</button>
+    </div>
+  </div>
+</div>
+<div id="adminEditBadge" class="ns-edit-badge" hidden>
+  <span id="adminEditBadgeTxt">🔓 Режим правки активен</span>
+  <button type="button" id="adminEditLockBtn" title="Заблокировать">🔒</button>
+</div>
 </body>
 </html>
