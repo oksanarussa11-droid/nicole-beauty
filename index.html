@@ -1376,7 +1376,12 @@
     <div class="form-row">
       <div class="form-group"><label>Дата</label><input type="date" id="incDate"></div>
       <div class="form-group"><label>Категория</label>
-        <select id="incCat"><option>Услуги</option><option>Аренда (субаренда)</option><option>Продажа товаров</option><option>Прочее</option></select>
+        <select id="incCat">
+          <option value="Прочее">Прочее</option>
+          <option value="Аренда (субаренда)">Аренда (субаренда)</option>
+          <option value="Продажа товаров">Продажа товаров</option>
+          <option value="Услуги" title="Ручная запись — обычно учитывается автоматически">Услуги (ручная)</option>
+        </select>
       </div>
       <div class="form-group"><label>Описание</label><input type="text" id="incDesc" placeholder="Описание"></div>
       <div class="form-group"><label>Сумма</label><input type="number" id="incAmount"></div>
