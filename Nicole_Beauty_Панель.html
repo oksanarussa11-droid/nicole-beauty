@@ -799,6 +799,99 @@ loadServicesFromDb();
 renderAll();
 refreshFinanceFromCloud();
 
+let _msRatesCache = null;
+async function loadMsRates() {
+  if (_msRatesCache) return _msRatesCache;
+  if (!sb) return [];
+  const { data: rows, error } = await sb
+    .from('master_services')
+    .select('master_id, service_id, price, commission_master_pct, commission_master_pct_salon');
+  if (error) { console.warn('master_services load failed:', error.message); return []; }
+  _msRatesCache = rows || [];
+  return _msRatesCache;
+}
+
+function _findRate(masterId, serviceId) {
+  return (_msRatesCache || []).find(r => r.master_id === masterId && r.service_id === serviceId);
+}
+
+function _previewPay(masterId, serviceId, price, usesSalon) {
+  const r = _findRate(masterId, serviceId);
+  if (!r) return { txt: 'Услуга не настроена для этого мастера', ok: false };
+  const pct = usesSalon ? Number(r.commission_master_pct_salon) : Number(r.commission_master_pct);
+  const pay = Math.round(price * pct) / 100;
+  const max = (Number(r.price) || 0) * 10;
+  if (max && price > max) return { txt: `Цена превышает лимит (макс ${max} ₽)`, ok: false };
+  return { txt: `Мастеру: ${pay.toLocaleString('ru-RU')} ₽ (${pct}%)`, ok: true };
+}
+
+function _populateMasterSelect(sel, selectedId) {
+  sel.innerHTML = (data.masters || [])
+    .map(m => `<option value="${m.id}" ${m.id===selectedId?'selected':''}>${m.name}</option>`).join('');
+}
+function _populateServiceSelect(sel, selectedId) {
+  sel.innerHTML = (data.services || [])
+    .map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${s.name}</option>`).join('');
+}
+
+async function openAttendanceEditModal(att) {
+  await loadMsRates();
+  if (!data.services || !data.services.length) await loadServicesFromDb();
+  const $ = (id) => document.getElementById(id);
+  $('attEditTitle').textContent = 'Редактировать запись';
+  $('attEditSub').textContent = `id=${att.id} · ${att.date} ${String(att.time||'').slice(0,5)}`;
+  $('aeDate').value = att.date;
+  $('aeTime').value = String(att.time || '').slice(0,5);
+  _populateMasterSelect($('aeMaster'), att.master_id);
+  _populateServiceSelect($('aeService'), att.service_id);
+  $('aePrice').value  = att.price;
+  $('aeSalon').checked = !!att.uses_salon_products;
+  $('aeClient').value = att.client_name || '';
+  $('aePayment').value = att.payment_method || '';
+  $('aeNote').value = att.note || '';
+  $('aeReason').value = '';
+  $('aeErr').hidden = true;
+
+  const refreshPreview = () => {
+    const r = _previewPay(parseInt($('aeMaster').value), parseInt($('aeService').value),
+                          Number($('aePrice').value || 0), $('aeSalon').checked);
+    $('aePreview').textContent = r.txt;
+    $('aePreview').style.color = r.ok ? '#374151' : '#b91c1c';
+  };
+  ['aeMaster','aeService','aePrice','aeSalon'].forEach(id => $(id).oninput = refreshPreview);
+  ['aeMaster','aeService'].forEach(id => $(id).onchange = refreshPreview);
+  refreshPreview();
+
+  $('attEditModal').hidden = false;
+  $('aeCancel').onclick = () => $('attEditModal').hidden = true;
+  $('aeOk').onclick = async () => {
+    $('aeOk').disabled = true; $('aeErr').hidden = true;
+    try {
+      const fields = {
+        date: $('aeDate').value,
+        time: $('aeTime').value ? $('aeTime').value + ':00' : null,
+        master_id:  parseInt($('aeMaster').value),
+        service_id: parseInt($('aeService').value),
+        price: Number($('aePrice').value),
+        uses_salon_products: $('aeSalon').checked,
+        client_name: $('aeClient').value || null,
+        payment_method: $('aePayment').value || null,
+        note: $('aeNote').value || null,
+      };
+      const r = await fetch('/api/admin-attendance', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update', id: att.id, fields, reason: $('aeReason').value || null }),
+      });
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok) { $('aeErr').textContent = j.error || 'Ошибка'; $('aeErr').hidden = false; return; }
+      $('attEditModal').hidden = true;
+      await reloadFinanceMonth();
+    } catch (e) { $('aeErr').textContent = String(e.message || e); $('aeErr').hidden = false; }
+    finally { $('aeOk').disabled = false; }
+  };
+}
+
 async function reloadFinanceMonth() {
   const month = document.getElementById('finMonth')?.value || (() => { const d=new Date(); return d.toISOString().slice(0,7); })();
   await loadAttendancesForMonth(month);
@@ -895,6 +988,28 @@ document.addEventListener('DOMContentLoaded', () => {
   if (lockBtn) lockBtn.onclick = () => adminEdit.lock();
 });
 </script>
+<div id="attEditModal" class="ns-modal-backdrop" hidden>
+  <div class="ns-modal" style="max-width:640px">
+    <h3 id="attEditTitle">Редактировать запись</h3>
+    <div class="ns-muted" id="attEditSub"></div>
+    <label>Дата<input type="date" id="aeDate"></label>
+    <label>Время<input type="time" id="aeTime" step="60"></label>
+    <label>Мастер<select id="aeMaster"></select></label>
+    <label>Услуга<select id="aeService"></select></label>
+    <label>Цена (₽)<input type="number" id="aePrice" min="0" step="10"></label>
+    <label><input type="checkbox" id="aeSalon" style="width:auto;display:inline-block;margin-right:6px"> Салонные продукты (комиссия ниже)</label>
+    <label>Клиент<input type="text" id="aeClient" maxlength="200"></label>
+    <label>Оплата<input type="text" id="aePayment" maxlength="40"></label>
+    <label>Заметка<textarea id="aeNote" maxlength="500" rows="2"></textarea></label>
+    <label>Причина правки (для аудита)<input type="text" id="aeReason" maxlength="500"></label>
+    <div class="ns-muted" id="aePreview"></div>
+    <div id="aeErr" class="ns-err" hidden></div>
+    <div class="ns-modal-actions">
+      <button type="button" id="aeCancel">Отмена</button>
+      <button type="button" id="aeOk" class="primary">Сохранить</button>
+    </div>
+  </div>
+</div>
 <div id="adminUnlockModal" class="ns-modal-backdrop" hidden>
   <div class="ns-modal">
     <h3>Режим правки</h3>
