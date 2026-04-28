@@ -1117,6 +1117,37 @@
 }
 .ns-toggle-bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .ns-toggle-bar input[type="checkbox"] { width: auto; }
+.row-expand { cursor: pointer; }
+.row-expand .expand-caret {
+  display: inline-block;
+  width: 14px;
+  color: var(--muted, #888);
+  font-size: 12px;
+  vertical-align: 1px;
+  transition: transform .15s ease;
+}
+.row-child td {
+  background: rgba(0,0,0,.025);
+  font-size: 12px;
+  color: var(--muted, #555);
+  border-top: none;
+}
+.row-child td:first-child { padding-left: 28px; }
+.calc-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--text, #333);
+  margin: 4px 0 14px 0;
+  padding: 10px 14px;
+  background: rgba(0,0,0,.02);
+  border-left: 2px solid var(--accent, #B89882);
+  letter-spacing: .02em;
+}
+.calc-line .op { color: var(--muted, #888); font-weight: 300; }
+.calc-line strong { font-weight: 600; }
 </style>
 </head>
 <body>
@@ -1354,13 +1385,19 @@
   </div>
 
   <div class="stats" id="finStats"></div>
+  <div class="calc-line" id="finCalcLine"></div>
 
   <div class="card">
     <h2>Новый доход</h2>
     <div class="form-row">
       <div class="form-group"><label>Дата</label><input type="date" id="incDate"></div>
       <div class="form-group"><label>Категория</label>
-        <select id="incCat"><option>Услуги</option><option>Аренда (субаренда)</option><option>Продажа товаров</option><option>Прочее</option></select>
+        <select id="incCat">
+          <option value="Прочее">Прочее</option>
+          <option value="Аренда (субаренда)">Аренда (субаренда)</option>
+          <option value="Продажа товаров">Продажа товаров</option>
+          <option value="Услуги" title="Ручная запись — обычно учитывается автоматически">Услуги (ручная)</option>
+        </select>
       </div>
       <div class="form-group"><label>Описание</label><input type="text" id="incDesc" placeholder="Описание"></div>
       <div class="form-group"><label>Сумма</label><input type="number" id="incAmount"></div>
@@ -1577,6 +1614,10 @@ const state = {
   expenses: [],
   inventory: [],
   appointments: [],
+  // UI-only: which master rows are expanded in the per-master tables.
+  // Keyed by master_id (number). Not persisted across reloads.
+  uiExpandedMonth: new Set(),
+  uiExpandedReport: new Set(),
 };
 
 let sb = null;
@@ -1719,6 +1760,20 @@ function unifiedTotals(filterFn) {
     });
   }
   return out;
+}
+
+// Returns Map<master_id, Array<{date, revenue, master_pay}>> for the given filterFn.
+// Sorted by date ascending within each master. Reuses unifiedTotals so OCR day-summaries
+// and per-form attendances stay de-duplicated the same way as the parent rollup.
+function unifiedByMasterDay(filterFn) {
+  const rows = unifiedTotals(filterFn);
+  const m = new Map();
+  for (const r of rows) {
+    if (!m.has(r.master_id)) m.set(r.master_id, []);
+    m.get(r.master_id).push({ date: r.date, revenue: r.revenue, master_pay: r.master_pay });
+  }
+  for (const arr of m.values()) arr.sort((a, b) => a.date.localeCompare(b.date));
+  return m;
 }
 
 // ===================== NAVIGATION =====================
@@ -2094,31 +2149,63 @@ function renderOperational() {
   }
 
   // Monthly aggregation uses unified totals (so OCR days + pro_form days are both counted).
-  const masterMap = {};
+  // Build a list of [master_id, name, m] so we can key expansions by id, not name.
+  const masterRows = [];
   unified.forEach(d => {
-    const name = masterName(d.master_id);
-    if (!masterMap[name]) masterMap[name] = { days: new Set(), revenue: 0, payout: 0 };
-    masterMap[name].days.add(d.date);
-    masterMap[name].revenue += d.revenue;
-    masterMap[name].payout  += d.master_pay;
+    let row = masterRows.find(r => r.id === d.master_id);
+    if (!row) {
+      row = { id: d.master_id, name: masterName(d.master_id), days: new Set(), revenue: 0, payout: 0 };
+      masterRows.push(row);
+    }
+    row.days.add(d.date);
+    row.revenue += d.revenue;
+    row.payout  += d.master_pay;
   });
-  const masters = Object.entries(masterMap);
+  const dayMap = unifiedByMasterDay(pick);
   const mr = document.getElementById('monthReport');
-  if (masters.length === 0) {
+  if (masterRows.length === 0) {
     mr.innerHTML = '<tr><td colspan="5" class="empty-msg">Нет данных</td></tr>';
   } else {
-    mr.innerHTML = masters.map(([name, m]) => `<tr>
-      <td>${name}</td><td style="text-align:center">${m.days.size}</td>
-      <td>${fmt(m.revenue)}</td><td>${fmt(m.payout)}</td><td>${fmt(m.revenue - m.payout)}</td>
-    </tr>`).join('') + `<tr style="font-weight:bold;background:#f8f4f7">
+    const parts = [];
+    for (const r of masterRows) {
+      const open = state.uiExpandedMonth.has(r.id);
+      const caret = open ? '<i class="ph-light ph-caret-down expand-caret"></i>' : '<i class="ph-light ph-caret-right expand-caret"></i>';
+      parts.push(`<tr class="row-expand" onclick="toggleMonthExpand(${r.id})">
+        <td>${caret} ${r.name}</td>
+        <td style="text-align:center">${r.days.size}</td>
+        <td>${fmt(r.revenue)}</td>
+        <td>${fmt(r.payout)}</td>
+        <td>${fmt(r.revenue - r.payout)}</td>
+      </tr>`);
+      if (open) {
+        const days = dayMap.get(r.id) || [];
+        for (const d of days) {
+          parts.push(`<tr class="row-child">
+            <td>${fmtDate(d.date)}</td>
+            <td></td>
+            <td>${fmt(d.revenue)}</td>
+            <td>${fmt(d.master_pay)}</td>
+            <td>${fmt(d.revenue - d.master_pay)}</td>
+          </tr>`);
+        }
+      }
+    }
+    parts.push(`<tr style="font-weight:bold;background:#f8f4f7">
       <td>ИТОГО</td>
-      <td style="text-align:center">${masters.reduce((s,[,m])=>s+m.days.size,0)}</td>
-      <td>${fmt(masters.reduce((s,[,m])=>s+m.revenue,0))}</td>
-      <td>${fmt(masters.reduce((s,[,m])=>s+m.payout,0))}</td>
-      <td>${fmt(masters.reduce((s,[,m])=>s+m.revenue-m.payout,0))}</td>
-    </tr>`;
+      <td style="text-align:center">${masterRows.reduce((s, r) => s + r.days.size, 0)}</td>
+      <td>${fmt(masterRows.reduce((s, r) => s + r.revenue, 0))}</td>
+      <td>${fmt(masterRows.reduce((s, r) => s + r.payout, 0))}</td>
+      <td>${fmt(masterRows.reduce((s, r) => s + r.revenue - r.payout, 0))}</td>
+    </tr>`);
+    mr.innerHTML = parts.join('');
   }
 }
+
+window.toggleMonthExpand = function(masterId) {
+  const s = state.uiExpandedMonth;
+  if (s.has(masterId)) s.delete(masterId); else s.add(masterId);
+  renderOperational();
+};
 
 // Safe text rendering for potential user input (client_name, note). Returns a string
 // suitable to drop into an innerHTML template that's already composed — we escape here
@@ -2132,16 +2219,42 @@ function renderFinance() {
   const incF = state.income.filter(i => matchMonth(i.date, month));
   const expF = state.expenses.filter(e => matchMonth(e.date, month));
 
-  const totalInc = incF.reduce((s, i) => s + Number(i.amount), 0);
+  // Service revenue + master commissions come from unifiedTotals (single source of truth).
+  const unified = unifiedTotals(d => matchMonth(d, month));
+  const svcRev    = unified.reduce((s, d) => s + d.revenue, 0);
+  const masterPay = unified.reduce((s, d) => s + d.master_pay, 0);
+
+  // Manual income (any category, including Услуги override) is supplementary.
+  const otherInc = incF.reduce((s, i) => s + Number(i.amount), 0);
   const totalExp = expF.reduce((s, e) => s + Number(e.amount), 0);
   const unpaid   = expF.filter(e => e.status === 'Не оплачено').reduce((s, e) => s + Number(e.amount), 0);
 
+  const netSalon = (svcRev - masterPay) + otherInc - totalExp;
+
   document.getElementById('finStats').innerHTML = `
-    <div class="stat-card green"><div class="stat-label">Доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
-    <div class="stat-card red"><div class="stat-label">Расходы</div><div class="stat-value">${fmt(totalExp)}</div></div>
-    <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(totalInc - totalExp)}</div></div>
-    <div class="stat-card orange"><div class="stat-label">Не оплачено</div><div class="stat-value">${fmt(unpaid)}</div></div>
+    <div class="stat-card green"><div class="stat-label">Выручка услуг</div><div class="stat-value">${fmt(svcRev)}</div></div>
+    <div class="stat-card orange"><div class="stat-label">Комиссии мастерам</div><div class="stat-value">${fmt(masterPay)}</div></div>
+    <div class="stat-card red"><div class="stat-label">Прочие расходы</div><div class="stat-value">${fmt(totalExp)}${unpaid ? ` <span style="font-size:11px;color:var(--muted,#888);font-weight:normal">(не оплачено: ${fmt(unpaid)})</span>` : ''}</div></div>
+    <div class="stat-card"><div class="stat-label">Чистая прибыль</div><div class="stat-value">${fmt(netSalon)}</div></div>
   `;
+
+  // Explicit arithmetic line so any manual income is visibly additive, not silently merged.
+  const calcLine = document.getElementById('finCalcLine');
+  if (calcLine) {
+    calcLine.innerHTML = `
+      <span>Выручка ${fmt(svcRev)}</span>
+      <span class="op">−</span>
+      <span>Комиссии ${fmt(masterPay)}</span>
+      <span class="op">=</span>
+      <span><strong>К зачислению ${fmt(svcRev - masterPay)}</strong></span>
+      <span class="op">+</span>
+      <span>Прочие доходы ${fmt(otherInc)}</span>
+      <span class="op">−</span>
+      <span>Прочие расходы ${fmt(totalExp)}</span>
+      <span class="op">=</span>
+      <span><strong>Чистая прибыль ${fmt(netSalon)}</strong></span>
+    `;
+  }
 
   document.getElementById('incTable').innerHTML = incF.length === 0
     ? '<tr><td colspan="6" class="empty-msg">Нет доходов</td></tr>'
@@ -2238,32 +2351,53 @@ function renderReports() {
     <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(totalInc - totalExp)}</div></div>
   `;
 
-  const masterMap = {};
+  const masterRows = [];
   unified.forEach(d => {
-    const name = masterName(d.master_id);
-    if (!masterMap[name]) masterMap[name] = { revenue: 0, payout: 0 };
-    masterMap[name].revenue += d.revenue;
-    masterMap[name].payout  += d.master_pay;
+    let row = masterRows.find(r => r.id === d.master_id);
+    if (!row) {
+      row = { id: d.master_id, name: masterName(d.master_id), revenue: 0, payout: 0 };
+      masterRows.push(row);
+    }
+    row.revenue += d.revenue;
+    row.payout  += d.master_pay;
   });
-  const mEntries = Object.entries(masterMap);
-  const maxVal = Math.max(1, ...mEntries.map(([,m]) => m.revenue));
+  const maxVal = Math.max(1, ...masterRows.map(r => r.revenue));
+  const dayMap = unifiedByMasterDay(pick);
 
-  document.getElementById('chartMasters').innerHTML = mEntries.length === 0
+  document.getElementById('chartMasters').innerHTML = masterRows.length === 0
     ? '<div class="empty-msg">Нет данных</div>'
     : `<div class="chart-bar-container">
-        ${mEntries.map(([name, m]) => `
+        ${masterRows.map(r => `
           <div class="chart-bar-group">
             <div class="chart-bars">
-              <div class="chart-bar revenue" style="height:${(m.revenue/maxVal)*140}px;" title="${fmt(m.revenue)}"></div>
-              <div class="chart-bar payout"  style="height:${(m.payout/maxVal)*140}px;"  title="${fmt(m.payout)}"></div>
-              <div class="chart-bar salon"   style="height:${((m.revenue-m.payout)/maxVal)*140}px;" title="${fmt(m.revenue-m.payout)}"></div>
+              <div class="chart-bar revenue" style="height:${(r.revenue/maxVal)*140}px;" title="${fmt(r.revenue)}"></div>
+              <div class="chart-bar payout"  style="height:${(r.payout/maxVal)*140}px;"  title="${fmt(r.payout)}"></div>
+              <div class="chart-bar salon"   style="height:${((r.revenue-r.payout)/maxVal)*140}px;" title="${fmt(r.revenue-r.payout)}"></div>
             </div>
-            <div class="chart-bar-label">${name}</div>
+            <div class="chart-bar-label">${r.name}</div>
           </div>`).join('')}
       </div>
       <table style="margin-top:10px;">
         <tr><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Салону</th></tr>
-        ${mEntries.map(([name, m]) => `<tr><td>${name}</td><td>${fmt(m.revenue)}</td><td>${fmt(m.payout)}</td><td>${fmt(m.revenue-m.payout)}</td></tr>`).join('')}
+        ${masterRows.map(r => {
+          const open = state.uiExpandedReport.has(r.id);
+          const caret = open ? '<i class="ph-light ph-caret-down expand-caret"></i>' : '<i class="ph-light ph-caret-right expand-caret"></i>';
+          const head = `<tr class="row-expand" onclick="toggleReportExpand(${r.id})">
+            <td>${caret} ${r.name}</td>
+            <td>${fmt(r.revenue)}</td>
+            <td>${fmt(r.payout)}</td>
+            <td>${fmt(r.revenue - r.payout)}</td>
+          </tr>`;
+          if (!open) return head;
+          const days = dayMap.get(r.id) || [];
+          const child = days.map(d => `<tr class="row-child">
+            <td>${fmtDate(d.date)}</td>
+            <td>${fmt(d.revenue)}</td>
+            <td>${fmt(d.master_pay)}</td>
+            <td>${fmt(d.revenue - d.master_pay)}</td>
+          </tr>`).join('');
+          return head + child;
+        }).join('')}
       </table>`;
 
   if (totalInc === 0 && totalExp === 0) {
@@ -2344,6 +2478,12 @@ function renderReports() {
         </tr>`;
   }
 }
+
+window.toggleReportExpand = function(masterId) {
+  const s = state.uiExpandedReport;
+  if (s.has(masterId)) s.delete(masterId); else s.add(masterId);
+  renderReports();
+};
 
 // ===================== REPORT PRESETS / EXPORT =====================
 function setRepPreset(kind) {
