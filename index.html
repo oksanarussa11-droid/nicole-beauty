@@ -1180,6 +1180,7 @@
   <div class="tab" data-section="inventory">Продукция</div>
   <div class="tab" data-section="masters">Мастера</div>
   <div class="tab" data-section="reports">Отчёты</div>
+  <div class="tab" data-section="audit">Журнал правок</div>
 </div>
 
 <div class="content" id="mainContent" style="display:none;">
@@ -1530,6 +1531,29 @@
   </div>
 </div>
 
+<!-- ==================== AUDIT ==================== -->
+<div class="section" id="audit">
+  <div class="card">
+    <h2>Журнал правок</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px;letter-spacing:.05em;">История админ-действий: создание ретро-записей, правки, удаления, восстановления.</p>
+    <div class="ns-toggle-bar" style="margin-bottom:18px">
+      <label style="text-transform:none;letter-spacing:0">С <input type="date" id="auFrom" style="margin-left:6px"></label>
+      <label style="text-transform:none;letter-spacing:0">По <input type="date" id="auTo" style="margin-left:6px"></label>
+      <label style="text-transform:none;letter-spacing:0">Мастер <select id="auMaster" style="margin-left:6px"><option value="">(все)</option></select></label>
+      <label style="text-transform:none;letter-spacing:0">Действие <select id="auAction" style="margin-left:6px">
+        <option value="">(все)</option>
+        <option value="create_retro">создание</option>
+        <option value="update">правка</option>
+        <option value="delete">удаление</option>
+        <option value="restore">восстановление</option>
+      </select></label>
+      <button type="button" class="btn btn-sm btn-primary" id="auReload" style="margin-left:auto">Обновить</button>
+    </div>
+    <div id="auTableWrap"></div>
+    <div id="auPager" style="margin-top:18px;display:flex;gap:10px;align-items:center;justify-content:center;font-size:12px;color:var(--muted);letter-spacing:.05em"></div>
+  </div>
+</div>
+
 </div>
 
 <span class="status-dot-footer" id="statusDot" title="Статус подключения"></span>
@@ -1702,6 +1726,7 @@ function showSection(id) {
   document.getElementById(id).classList.add('active');
   document.querySelector('.tab[data-section="' + id + '"]').classList.add('active');
   renderAll();
+  if (id === 'audit') loadAudit();
 }
 
 // ===================== RENDER =====================
@@ -2945,6 +2970,91 @@ document.addEventListener('DOMContentLoaded', () => {
   if (toggle) toggle.addEventListener('change', async () => { await loadAll(); renderAll(); });
   const retro = document.getElementById('attRetroBtn');
   if (retro) retro.addEventListener('click', openAttendanceCreateModal);
+});
+
+// ===================== AUDIT TAB =====================
+const audit = { rows: [], total: 0, limit: 50, offset: 0, expanded: new Set() };
+
+async function loadAudit() {
+  const $ = id => document.getElementById(id);
+  const sel = $('auMaster');
+  if (sel && sel.options.length <= 1) {
+    sel.innerHTML = '<option value="">(все)</option>' +
+      (state.masters || []).map(m => `<option value="${m.id}">${escapeText(m.name)}</option>`).join('');
+  }
+  const params = new URLSearchParams();
+  if ($('auFrom').value) params.set('from', $('auFrom').value);
+  if ($('auTo').value)   params.set('to',   $('auTo').value);
+  if ($('auMaster').value) params.set('master_id', $('auMaster').value);
+  if ($('auAction').value) params.set('action', $('auAction').value);
+  params.set('limit',  audit.limit);
+  params.set('offset', audit.offset);
+  params.set('admin_password', _adminPw());
+  try {
+    const r = await fetch('/api/admin-audit?' + params.toString());
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok) { $('auTableWrap').textContent = j.error || 'Ошибка'; return; }
+    audit.rows = j.rows || []; audit.total = j.total || audit.rows.length;
+    renderAudit();
+  } catch (e) {
+    $('auTableWrap').textContent = String(e.message || e);
+  }
+}
+
+function _actionLabel(a) {
+  return ({ create_retro:'➕ создание', update:'🛠 правка', delete:'🗑 удаление', restore:'↩ восстановление' })[a] || a;
+}
+function _diffSummary(before, after) {
+  if (!before)  return '(новая запись)';
+  if (!after)   return '(удалена)';
+  const watch = ['date','time','master_id','service_id','price','master_pay','commission_pct','uses_salon_products','client_name','payment_method','note'];
+  const diffs = watch.filter(k => String(before[k] ?? '') !== String(after[k] ?? ''));
+  return diffs.length ? diffs.map(k => `${k}: ${before[k] ?? '—'} → ${after[k] ?? '—'}`).join('; ') : '(без изменений)';
+}
+
+function renderAudit() {
+  const wrap = document.getElementById('auTableWrap');
+  if (!audit.rows.length) { wrap.innerHTML = '<p class="empty-msg">Нет записей.</p>'; renderAuditPager(); return; }
+  const rows = audit.rows.map(row => {
+    const masterId = row.before?.master_id ?? row.after?.master_id;
+    const expanded = audit.expanded.has(row.id);
+    const detail = expanded
+      ? `<tr><td colspan="6"><pre style="white-space:pre-wrap;background:var(--surface-2);padding:12px;border-radius:var(--radius);font-size:11px;max-height:320px;overflow:auto;border:1px solid var(--hairline);color:var(--ink-soft)">BEFORE: ${escapeText(JSON.stringify(row.before, null, 2))}\n\nAFTER:  ${escapeText(JSON.stringify(row.after, null, 2))}</pre></td></tr>`
+      : '';
+    return `<tr data-aid="${row.id}" style="cursor:pointer">
+      <td>${new Date(row.created_at).toLocaleString('ru-RU')}</td>
+      <td>${escapeText(row.actor)}</td>
+      <td>${_actionLabel(row.action)}</td>
+      <td>id=${row.attendance_id}<br><small style="color:var(--muted)">${escapeText(masterName(masterId) || '')}</small></td>
+      <td>${escapeText(_diffSummary(row.before, row.after))}</td>
+      <td>${escapeText(row.reason || '')}</td>
+    </tr>${detail}`;
+  }).join('');
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Когда</th><th>Кто</th><th>Действие</th><th>Запись</th><th>Изменения</th><th>Причина</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+  wrap.querySelectorAll('tr[data-aid]').forEach(tr => tr.onclick = () => {
+    const id = parseInt(tr.dataset.aid);
+    if (audit.expanded.has(id)) audit.expanded.delete(id); else audit.expanded.add(id);
+    renderAudit();
+  });
+  renderAuditPager();
+}
+
+function renderAuditPager() {
+  const p = document.getElementById('auPager');
+  const totalPages = Math.max(1, Math.ceil(audit.total / audit.limit));
+  const cur = Math.floor(audit.offset / audit.limit) + 1;
+  p.innerHTML = `<button class="btn btn-sm" id="auPrev" ${cur<=1?'disabled':''}>←</button>
+    <span>стр. ${cur} из ${totalPages} · всего ${audit.total}</span>
+    <button class="btn btn-sm" id="auNext" ${cur>=totalPages?'disabled':''}>→</button>`;
+  document.getElementById('auPrev').onclick = () => { audit.offset = Math.max(0, audit.offset - audit.limit); loadAudit(); };
+  document.getElementById('auNext').onclick = () => { audit.offset += audit.limit; loadAudit(); };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const reload = document.getElementById('auReload');
+  if (reload) reload.addEventListener('click', () => { audit.offset = 0; loadAudit(); });
 });
 </script>
 
