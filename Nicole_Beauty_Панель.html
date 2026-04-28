@@ -196,7 +196,7 @@
   <div class="card">
     <h2>Выручка от услуг <span style="font-weight:400;color:#999;font-size:12px;">(авто из записей мастеров)</span></h2>
     <table>
-      <thead><tr><th>Дата</th><th>Мастер</th><th>Услуга</th><th>Оплата</th><th>Итого</th><th>Мастеру</th><th>Салону</th></tr></thead>
+      <thead><tr><th>Дата</th><th>Мастер</th><th>Услуга</th><th>Оплата</th><th>Итого</th><th>Мастеру</th><th>Салону</th><th></th></tr></thead>
       <tbody id="autoIncTable"></tbody>
     </table>
   </div>
@@ -332,6 +332,7 @@ const data = {
   income: [],
   expenses: [],
   attendances: [], // auto-loaded from Supabase per selected finance month
+  services: [],
   inventory: [
     { cat:'Constant Delight', name:'Краска для волос' },
     { cat:'Constant Delight', name:'Оксид 6%' },
@@ -360,20 +361,44 @@ async function loadAttendancesForMonth(month) {
   const [y, m] = month.split('-').map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   const to = `${month}-${String(lastDay).padStart(2,'0')}`;
-  const { data: rows, error } = await sb
-    .from('attendances')
-    .select('date, time, service_name, price, master_pay, payment_method, master_id, deleted_at, edited_at, masters!inner(name)')
+  const showDeleted = !!document.getElementById('finShowDeleted')?.checked;
+  let q = sb.from('attendances')
+    .select('id, date, time, master_id, service_id, service_name, price, master_pay, commission_pct, uses_salon_products, client_name, payment_method, source, note, deleted_at, edited_at, masters!inner(name)')
     .gte('date', from).lte('date', to)
-    .is('deleted_at', null)
     .order('date', { ascending: false }).order('time', { ascending: false });
+  if (!showDeleted) q = q.is('deleted_at', null);
+  const { data: rows, error } = await q;
   if (error) { console.warn('attendances load failed:', error.message); data.attendances = []; return; }
   data.attendances = (rows || []).map(r => ({
+    id: r.id,
     date: r.date, time: r.time,
+    master_id: r.master_id,
+    service_id: r.service_id,
     service_name: r.service_name,
     price: r.price, master_pay: r.master_pay,
+    commission_pct: r.commission_pct,
+    uses_salon_products: r.uses_salon_products,
+    client_name: r.client_name,
     payment_method: r.payment_method,
+    source: r.source,
+    note: r.note,
+    deleted_at: r.deleted_at,
+    edited_at: r.edited_at,
     master_name: r.masters?.name || '',
   }));
+}
+
+async function loadMastersFromDb() {
+  if (!sb) return;
+  const { data: rows, error } = await sb.from('masters').select('id, name, spec').order('name');
+  if (error) { console.warn('masters load failed:', error.message); return; }
+  if (rows && rows.length) data.masters = rows;
+}
+async function loadServicesFromDb() {
+  if (!sb) return;
+  const { data: rows, error } = await sb.from('services').select('id, name').order('name');
+  if (error) { console.warn('services load failed:', error.message); data.services = []; return; }
+  data.services = rows || [];
 }
 
 async function refreshFinanceFromCloud() {
@@ -562,10 +587,14 @@ function renderFinance() {
   const autoTbody = document.getElementById('autoIncTable');
   if (autoTbody) {
     autoTbody.innerHTML = attF.length === 0
-      ? '<tr><td colspan="7" class="empty-msg">Нет записей за месяц</td></tr>'
+      ? '<tr><td colspan="8" class="empty-msg">Нет записей за месяц</td></tr>'
       : attF.slice().sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time)).map(a => {
           const salon = Number(a.price||0) - Number(a.master_pay||0);
-          return `<tr>
+          const cls = a.deleted_at ? ' class="ns-row-deleted"' : '';
+          const actions = a.deleted_at
+            ? `<span class="ns-row-actions"><button type="button" title="Восстановить" data-act="restore" data-id="${a.id}">↩️</button></span>`
+            : `<span class="ns-row-actions"><button type="button" title="Редактировать" data-act="edit" data-id="${a.id}">✏️</button><button type="button" title="Удалить" data-act="delete" data-id="${a.id}">🗑️</button></span>`;
+          return `<tr${cls}>
             <td>${fmtDate(a.date)} ${(a.time||'').slice(0,5)}</td>
             <td>${a.master_name || '—'}</td>
             <td>${a.service_name || '—'}</td>
@@ -573,12 +602,14 @@ function renderFinance() {
             <td>${fmt(a.price||0)}</td>
             <td>${fmt(a.master_pay||0)}</td>
             <td>${fmt(salon)}</td>
+            <td>${actions}</td>
           </tr>`;
         }).join('') + `<tr style="font-weight:bold;background:#f8f4f7">
           <td colspan="4">ИТОГО</td>
           <td>${fmt(autoServices)}</td>
           <td>${fmt(autoMasters)}</td>
           <td>${fmt(autoSalon)}</td>
+          <td></td>
         </tr>`;
   }
 
@@ -763,8 +794,42 @@ document.getElementById('opMonth').value = thisMonth();
 document.getElementById('finMonth').value = thisMonth();
 document.getElementById('repMonth').value = thisMonth();
 initSupabase();
+loadMastersFromDb();
+loadServicesFromDb();
 renderAll();
 refreshFinanceFromCloud();
+
+async function reloadFinanceMonth() {
+  const month = document.getElementById('finMonth')?.value || (() => { const d=new Date(); return d.toISOString().slice(0,7); })();
+  await loadAttendancesForMonth(month);
+  renderFinance();
+}
+
+async function confirmRestore(att) {
+  if (!confirm(`Восстановить запись id=${att.id}?`)) return;
+  const r = await fetch('/api/admin-attendance', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'restore', id: att.id }),
+  });
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok) { alert('Ошибка: ' + (j.error || r.status)); return; }
+  await reloadFinanceMonth();
+}
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('#autoIncTable button[data-act]');
+  if (!btn) return;
+  const id = parseInt(btn.dataset.id);
+  const act = btn.dataset.act;
+  if (!id || !act) return;
+  if (!(await ensureAdminEditMode())) return;
+  const att = (data.attendances || []).find(a => a.id === id);
+  if (!att) { alert('Запись не найдена в локальном кеше — обновите страницу.'); return; }
+  if (act === 'edit')    openAttendanceEditModal(att);
+  if (act === 'delete')  openAttendanceDeleteModal(att);
+  if (act === 'restore') confirmRestore(att);
+});
 
 // ─── Admin edit-mode state ─────────────────────────────────────────
 const adminEdit = {
