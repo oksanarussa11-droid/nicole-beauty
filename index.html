@@ -1011,6 +1011,110 @@
     .chart-bar-container { gap: 6px; }
     .chart-legend { gap: 14px; font-size: 10px; }
   }
+/* ── ADMIN EDIT MODALS ──────────────────────────────────── */
+.ns-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(26,23,21,.55);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  animation: fadeIn .25s ease both;
+}
+.ns-modal {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 32px 36px;
+  max-width: 560px; width: 92%;
+  max-height: 90vh; overflow-y: auto;
+  box-shadow: var(--shadow-2);
+}
+.ns-modal h3 {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.ns-modal p.ns-sub {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: .04em;
+  margin-bottom: 18px;
+}
+.ns-modal label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 14px;
+  margin-bottom: 4px;
+}
+.ns-modal input[type="text"],
+.ns-modal input[type="number"],
+.ns-modal input[type="date"],
+.ns-modal input[type="time"],
+.ns-modal select,
+.ns-modal textarea {
+  width: 100%;
+  padding: 9px 0;
+  border: none;
+  border-bottom: 1px solid var(--hairline-strong);
+  background: transparent;
+  font-size: 14.5px;
+  font-family: var(--sans);
+  color: var(--ink);
+  border-radius: 0;
+}
+.ns-modal input:focus, .ns-modal select:focus, .ns-modal textarea:focus {
+  outline: none; border-bottom-color: var(--accent);
+}
+.ns-modal textarea { min-height: 56px; resize: vertical; }
+.ns-modal .ns-checkbox {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ns-modal .ns-checkbox input { width: auto; }
+.ns-modal-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+  margin-top: 24px;
+}
+.ns-preview {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-style: italic;
+  letter-spacing: .02em;
+}
+.ns-err {
+  color: var(--negative);
+  font-size: 12px;
+  margin-top: 10px;
+  letter-spacing: .03em;
+}
+.ns-row-actions { display: inline-flex; gap: 6px; }
+.ns-row-actions button {
+  background: transparent; border: 0; cursor: pointer;
+  padding: 4px 6px; font-size: 14px;
+  opacity: .55; transition: opacity .15s;
+  color: var(--ink-soft);
+}
+.ns-row-actions button:hover { opacity: 1; }
+.ns-row-deleted td { opacity: .45; text-decoration: line-through; }
+.ns-row-deleted td:last-child { text-decoration: none; opacity: .7; }
+.ns-toggle-bar {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 14px;
+  font-size: 12px; color: var(--muted);
+  letter-spacing: .04em;
+}
+.ns-toggle-bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.ns-toggle-bar input[type="checkbox"] { width: auto; }
 </style>
 </head>
 <body>
@@ -1076,6 +1180,7 @@
   <div class="tab" data-section="inventory">Продукция</div>
   <div class="tab" data-section="masters">Мастера</div>
   <div class="tab" data-section="reports">Отчёты</div>
+  <div class="tab" data-section="audit">Журнал правок</div>
 </div>
 
 <div class="content" id="mainContent" style="display:none;">
@@ -1128,9 +1233,13 @@
   <div class="card">
     <h2>Журнал услуг</h2>
     <p style="color:var(--muted);font-size:12px;margin-bottom:10px;letter-spacing:.05em;">Записи, внесённые мастерами через их рабочую страницу.</p>
+    <div class="ns-toggle-bar" id="finShowDeletedBar">
+      <label><input type="checkbox" id="finShowDeleted"> Показать удалённые</label>
+      <button type="button" class="btn btn-sm btn-primary" id="attRetroBtn" style="margin-left:auto">+ Ретро-запись</button>
+    </div>
     <table>
       <thead>
-        <tr><th>Дата</th><th>Мастер</th><th>Услуга</th><th>Цена</th><th>Мастеру</th><th>Клиент</th><th>Оплата</th></tr>
+        <tr><th>Дата</th><th>Мастер</th><th>Услуга</th><th>Цена</th><th>Мастеру</th><th>Клиент</th><th>Оплата</th><th></th></tr>
       </thead>
       <tbody id="attTable"></tbody>
     </table>
@@ -1422,6 +1531,29 @@
   </div>
 </div>
 
+<!-- ==================== AUDIT ==================== -->
+<div class="section" id="audit">
+  <div class="card">
+    <h2>Журнал правок</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px;letter-spacing:.05em;">История админ-действий: создание ретро-записей, правки, удаления, восстановления.</p>
+    <div class="ns-toggle-bar" style="margin-bottom:18px">
+      <label style="text-transform:none;letter-spacing:0">С <input type="date" id="auFrom" style="margin-left:6px"></label>
+      <label style="text-transform:none;letter-spacing:0">По <input type="date" id="auTo" style="margin-left:6px"></label>
+      <label style="text-transform:none;letter-spacing:0">Мастер <select id="auMaster" style="margin-left:6px"><option value="">(все)</option></select></label>
+      <label style="text-transform:none;letter-spacing:0">Действие <select id="auAction" style="margin-left:6px">
+        <option value="">(все)</option>
+        <option value="create_retro">создание</option>
+        <option value="update">правка</option>
+        <option value="delete">удаление</option>
+        <option value="restore">восстановление</option>
+      </select></label>
+      <button type="button" class="btn btn-sm btn-primary" id="auReload" style="margin-left:auto">Обновить</button>
+    </div>
+    <div id="auTableWrap"></div>
+    <div id="auPager" style="margin-top:18px;display:flex;gap:10px;align-items:center;justify-content:center;font-size:12px;color:var(--muted);letter-spacing:.05em"></div>
+  </div>
+</div>
+
 </div>
 
 <span class="status-dot-footer" id="statusDot" title="Статус подключения"></span>
@@ -1522,7 +1654,12 @@ async function loadAll() {
       sb.from('services').select('*').order('name'),
       sb.from('master_services').select('*'),
       sb.from('day_summaries').select('*').order('date', { ascending: false }),
-      sb.from('attendances').select('*').is('deleted_at', null).order('date', { ascending: false }).order('time', { ascending: false }),
+      (function(){
+        const showDeleted = !!document.getElementById('finShowDeleted')?.checked;
+        let q = sb.from('attendances').select('*').order('date', { ascending: false }).order('time', { ascending: false });
+        if (!showDeleted) q = q.is('deleted_at', null);
+        return q;
+      })(),
       sb.from('income').select('*').order('date', { ascending: false }),
       sb.from('expenses').select('*').order('date', { ascending: false }),
       sb.from('inventory').select('*').order('brand').order('name'),
@@ -1589,6 +1726,7 @@ function showSection(id) {
   document.getElementById(id).classList.add('active');
   document.querySelector('.tab[data-section="' + id + '"]').classList.add('active');
   renderAll();
+  if (id === 'audit') loadAudit();
 }
 
 // ===================== RENDER =====================
@@ -1934,16 +2072,23 @@ function renderOperational() {
   const att = document.getElementById('attTable');
   if (att) {
     att.innerHTML = filteredAtt.length === 0
-      ? '<tr><td colspan="7" class="empty-msg">Нет записей</td></tr>'
-      : filteredAtt.map(a => `<tr>
-          <td>${fmtDate(a.date)}${a.time ? ' <small style="color:var(--muted);">'+String(a.time).slice(0,5)+'</small>' : ''}</td>
-          <td>${masterName(a.master_id)}</td>
-          <td>${escapeText(a.service_name || (a.service_id ? serviceName(a.service_id) : '—'))}</td>
-          <td>${fmt(a.price)}</td>
-          <td>${fmt(a.master_pay)}</td>
-          <td>${a.client_name ? escapeText(a.client_name) : '<span style="color:var(--muted);">—</span>'}</td>
-          <td><span class="badge" style="border-color:var(--hairline-strong);color:var(--muted);">${escapeText(a.payment_method || '')}</span></td>
-        </tr>`).join('');
+      ? '<tr><td colspan="8" class="empty-msg">Нет записей</td></tr>'
+      : filteredAtt.map(a => {
+          const cls = a.deleted_at ? ' class="ns-row-deleted"' : '';
+          const actions = a.deleted_at
+            ? `<span class="ns-row-actions"><button type="button" title="Восстановить" data-act="restore" data-id="${a.id}">↩️</button></span>`
+            : `<span class="ns-row-actions"><button type="button" title="Редактировать" data-act="edit" data-id="${a.id}">✏️</button><button type="button" title="Удалить" data-act="delete" data-id="${a.id}">🗑️</button></span>`;
+          return `<tr${cls}>
+            <td>${fmtDate(a.date)}${a.time ? ' <small style="color:var(--muted);">'+String(a.time).slice(0,5)+'</small>' : ''}</td>
+            <td>${masterName(a.master_id)}</td>
+            <td>${escapeText(a.service_name || (a.service_id ? serviceName(a.service_id) : '—'))}</td>
+            <td>${fmt(a.price)}</td>
+            <td>${fmt(a.master_pay)}</td>
+            <td>${a.client_name ? escapeText(a.client_name) : '<span style="color:var(--muted);">—</span>'}</td>
+            <td><span class="badge" style="border-color:var(--hairline-strong);color:var(--muted);">${escapeText(a.payment_method || '')}</span></td>
+            <td>${actions}</td>
+          </tr>`;
+        }).join('');
   }
 
   // Monthly aggregation uses unified totals (so OCR days + pro_form days are both counted).
@@ -2626,6 +2771,291 @@ document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => gatePin.focus(), 50);
   }
 });
+
+// ===================== ADMIN EDIT/DELETE/RETRO ATTENDANCES =====================
+
+function _adminPw() { return sessionStorage.getItem(ADMIN_PW_KEY) || ''; }
+
+function _findRate(masterId, serviceId) {
+  return (state.masterServices || []).find(r => r.master_id === masterId && r.service_id === serviceId);
+}
+
+function _previewPay(masterId, serviceId, price, usesSalon) {
+  const r = _findRate(masterId, serviceId);
+  if (!r) return { txt: 'Услуга не настроена для этого мастера', ok: false };
+  const pct = usesSalon ? Number(r.commission_master_pct_salon) : Number(r.commission_master_pct);
+  const pay = Math.round(price * pct) / 100;
+  const max = (Number(r.price) || 0) * 10;
+  if (max && price > max) return { txt: `Цена превышает лимит (макс ${max} ₽)`, ok: false };
+  return { txt: `Мастеру: ${pay.toLocaleString('ru-RU')} ₽ (${pct}%)`, ok: true };
+}
+
+function _populateMasterSelect(sel, selectedId) {
+  sel.innerHTML = (state.masters || [])
+    .map(m => `<option value="${m.id}" ${m.id===selectedId?'selected':''}>${escapeText(m.name)}</option>`).join('');
+}
+function _populateServiceSelect(sel, selectedId) {
+  sel.innerHTML = (state.services || [])
+    .map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${escapeText(s.name)}</option>`).join('');
+}
+
+async function _adminAttendanceCall(payload) {
+  const r = await fetch('/api/admin-attendance', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...payload, admin_password: _adminPw() }),
+  });
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+  return j;
+}
+
+function openAttendanceEditModal(att) {
+  const $ = (id) => document.getElementById(id);
+  $('attEditTitle').textContent = 'Редактировать запись';
+  $('attEditSub').textContent = `id=${att.id} · ${att.date} ${String(att.time||'').slice(0,5)}`;
+  $('aeDate').value = att.date;
+  $('aeTime').value = String(att.time || '').slice(0,5);
+  _populateMasterSelect($('aeMaster'), att.master_id);
+  _populateServiceSelect($('aeService'), att.service_id);
+  $('aePrice').value  = att.price;
+  $('aeSalon').checked = !!att.uses_salon_products;
+  $('aeClient').value = att.client_name || '';
+  $('aePayment').value = att.payment_method || '';
+  $('aeNote').value = att.note || '';
+  $('aeReason').value = '';
+  $('aeErr').hidden = true;
+
+  const refreshPreview = () => {
+    const r = _previewPay(parseInt($('aeMaster').value), parseInt($('aeService').value),
+                          Number($('aePrice').value || 0), $('aeSalon').checked);
+    $('aePreview').textContent = r.txt;
+    $('aePreview').style.color = r.ok ? 'var(--ink-soft)' : 'var(--negative)';
+  };
+  ['aeMaster','aeService','aePrice','aeSalon'].forEach(id => $(id).oninput = refreshPreview);
+  ['aeMaster','aeService'].forEach(id => $(id).onchange = refreshPreview);
+  refreshPreview();
+
+  $('attEditModal').hidden = false;
+  $('aeCancel').onclick = () => $('attEditModal').hidden = true;
+  $('aeOk').onclick = async () => {
+    $('aeOk').disabled = true; $('aeErr').hidden = true;
+    try {
+      const fields = {
+        date: $('aeDate').value,
+        time: $('aeTime').value ? $('aeTime').value + ':00' : null,
+        master_id:  parseInt($('aeMaster').value),
+        service_id: parseInt($('aeService').value),
+        price: Number($('aePrice').value),
+        uses_salon_products: $('aeSalon').checked,
+        client_name: $('aeClient').value || null,
+        payment_method: $('aePayment').value || null,
+        note: $('aeNote').value || null,
+      };
+      await _adminAttendanceCall({ action: 'update', id: att.id, fields, reason: $('aeReason').value || null });
+      $('attEditModal').hidden = true;
+      toast('Запись обновлена');
+      await loadAll(); renderAll();
+    } catch (e) { $('aeErr').textContent = e.message; $('aeErr').hidden = false; }
+    finally { $('aeOk').disabled = false; }
+  };
+}
+
+function openAttendanceDeleteModal(att) {
+  const $ = (id) => document.getElementById(id);
+  const m = state.masters.find(x => x.id === att.master_id);
+  $('adSummary').textContent =
+    `${att.date} ${String(att.time||'').slice(0,5)} · ` +
+    `${(m && m.name) || ('id='+att.master_id)} · ` +
+    `${att.service_name || serviceName(att.service_id) || '?'} · ` +
+    `${Number(att.price).toLocaleString('ru-RU')} ₽` +
+    (att.client_name ? ` · ${att.client_name}` : '');
+  $('adReason').value = '';
+  $('adErr').hidden = true;
+  $('attDeleteModal').hidden = false;
+
+  $('adCancel').onclick = () => $('attDeleteModal').hidden = true;
+  $('adOk').onclick = async () => {
+    $('adOk').disabled = true; $('adErr').hidden = true;
+    try {
+      await _adminAttendanceCall({ action: 'delete', id: att.id, reason: $('adReason').value || null });
+      $('attDeleteModal').hidden = true;
+      toast('Запись удалена');
+      await loadAll(); renderAll();
+    } catch (e) { $('adErr').textContent = e.message; $('adErr').hidden = false; }
+    finally { $('adOk').disabled = false; }
+  };
+}
+
+async function confirmAttendanceRestore(att) {
+  if (!confirm(`Восстановить запись id=${att.id}?`)) return;
+  try {
+    await _adminAttendanceCall({ action: 'restore', id: att.id });
+    toast('Запись восстановлена');
+    await loadAll(); renderAll();
+  } catch (e) { toast('Ошибка: ' + e.message, true); }
+}
+
+function openAttendanceCreateModal() {
+  const $ = (id) => document.getElementById(id);
+  $('attEditTitle').textContent = 'Новая ретро-запись';
+  $('attEditSub').textContent = '';
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  $('aeDate').value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  $('aeTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  _populateMasterSelect($('aeMaster'), (state.masters[0]||{}).id);
+  _populateServiceSelect($('aeService'), (state.services[0]||{}).id);
+  $('aePrice').value = '';
+  $('aeSalon').checked = false;
+  $('aeClient').value = '';
+  $('aePayment').value = '';
+  $('aeNote').value = '';
+  $('aeReason').value = '';
+  $('aeErr').hidden = true;
+
+  const refreshPreview = () => {
+    const r = _previewPay(parseInt($('aeMaster').value), parseInt($('aeService').value),
+                          Number($('aePrice').value || 0), $('aeSalon').checked);
+    $('aePreview').textContent = r.txt;
+    $('aePreview').style.color = r.ok ? 'var(--ink-soft)' : 'var(--negative)';
+  };
+  ['aeMaster','aeService','aePrice','aeSalon'].forEach(id => $(id).oninput = refreshPreview);
+  ['aeMaster','aeService'].forEach(id => $(id).onchange = refreshPreview);
+  refreshPreview();
+
+  $('attEditModal').hidden = false;
+  $('aeCancel').onclick = () => $('attEditModal').hidden = true;
+  $('aeOk').onclick = async () => {
+    $('aeOk').disabled = true; $('aeErr').hidden = true;
+    try {
+      const fields = {
+        date: $('aeDate').value,
+        time: $('aeTime').value + ':00',
+        master_id:  parseInt($('aeMaster').value),
+        service_id: parseInt($('aeService').value),
+        price: Number($('aePrice').value),
+        uses_salon_products: $('aeSalon').checked,
+        client_name: $('aeClient').value || null,
+        payment_method: $('aePayment').value || null,
+        note: $('aeNote').value || null,
+      };
+      await _adminAttendanceCall({ action: 'create', fields, reason: $('aeReason').value || null });
+      $('attEditModal').hidden = true;
+      toast('Ретро-запись создана');
+      await loadAll(); renderAll();
+    } catch (e) { $('aeErr').textContent = e.message; $('aeErr').hidden = false; }
+    finally { $('aeOk').disabled = false; }
+  };
+}
+
+// Delegated click handler for row action buttons (anywhere in attTable)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('#attTable button[data-act]');
+  if (!btn) return;
+  const id = parseInt(btn.dataset.id);
+  const act = btn.dataset.act;
+  if (!id || !act) return;
+  const att = (state.attendances || []).find(a => a.id === id);
+  if (!att) { toast('Запись не найдена в кеше — обновите страницу.', true); return; }
+  if (act === 'edit')    openAttendanceEditModal(att);
+  if (act === 'delete')  openAttendanceDeleteModal(att);
+  if (act === 'restore') confirmAttendanceRestore(att);
+});
+
+// Wire show-deleted toggle and retro button after DOM ready (panel may load lazily)
+document.addEventListener('DOMContentLoaded', () => {
+  // Use defer-bind: elements may exist only after gate unlock — re-check on each tab show is unnecessary; they're in operational which is in DOM from start.
+  const toggle = document.getElementById('finShowDeleted');
+  if (toggle) toggle.addEventListener('change', async () => { await loadAll(); renderAll(); });
+  const retro = document.getElementById('attRetroBtn');
+  if (retro) retro.addEventListener('click', openAttendanceCreateModal);
+});
+
+// ===================== AUDIT TAB =====================
+const audit = { rows: [], total: 0, limit: 50, offset: 0, expanded: new Set() };
+
+async function loadAudit() {
+  const $ = id => document.getElementById(id);
+  const sel = $('auMaster');
+  if (sel && sel.options.length <= 1) {
+    sel.innerHTML = '<option value="">(все)</option>' +
+      (state.masters || []).map(m => `<option value="${m.id}">${escapeText(m.name)}</option>`).join('');
+  }
+  const params = new URLSearchParams();
+  if ($('auFrom').value) params.set('from', $('auFrom').value);
+  if ($('auTo').value)   params.set('to',   $('auTo').value);
+  if ($('auMaster').value) params.set('master_id', $('auMaster').value);
+  if ($('auAction').value) params.set('action', $('auAction').value);
+  params.set('limit',  audit.limit);
+  params.set('offset', audit.offset);
+  params.set('admin_password', _adminPw());
+  try {
+    const r = await fetch('/api/admin-audit?' + params.toString());
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok) { $('auTableWrap').textContent = j.error || 'Ошибка'; return; }
+    audit.rows = j.rows || []; audit.total = j.total || audit.rows.length;
+    renderAudit();
+  } catch (e) {
+    $('auTableWrap').textContent = String(e.message || e);
+  }
+}
+
+function _actionLabel(a) {
+  return ({ create_retro:'➕ создание', update:'🛠 правка', delete:'🗑 удаление', restore:'↩ восстановление' })[a] || a;
+}
+function _diffSummary(before, after) {
+  if (!before)  return '(новая запись)';
+  if (!after)   return '(удалена)';
+  const watch = ['date','time','master_id','service_id','price','master_pay','commission_pct','uses_salon_products','client_name','payment_method','note'];
+  const diffs = watch.filter(k => String(before[k] ?? '') !== String(after[k] ?? ''));
+  return diffs.length ? diffs.map(k => `${k}: ${before[k] ?? '—'} → ${after[k] ?? '—'}`).join('; ') : '(без изменений)';
+}
+
+function renderAudit() {
+  const wrap = document.getElementById('auTableWrap');
+  if (!audit.rows.length) { wrap.innerHTML = '<p class="empty-msg">Нет записей.</p>'; renderAuditPager(); return; }
+  const rows = audit.rows.map(row => {
+    const masterId = row.before?.master_id ?? row.after?.master_id;
+    const expanded = audit.expanded.has(row.id);
+    const detail = expanded
+      ? `<tr><td colspan="6"><pre style="white-space:pre-wrap;background:var(--surface-2);padding:12px;border-radius:var(--radius);font-size:11px;max-height:320px;overflow:auto;border:1px solid var(--hairline);color:var(--ink-soft)">BEFORE: ${escapeText(JSON.stringify(row.before, null, 2))}\n\nAFTER:  ${escapeText(JSON.stringify(row.after, null, 2))}</pre></td></tr>`
+      : '';
+    return `<tr data-aid="${row.id}" style="cursor:pointer">
+      <td>${new Date(row.created_at).toLocaleString('ru-RU')}</td>
+      <td>${escapeText(row.actor)}</td>
+      <td>${_actionLabel(row.action)}</td>
+      <td>id=${row.attendance_id}<br><small style="color:var(--muted)">${escapeText(masterName(masterId) || '')}</small></td>
+      <td>${escapeText(_diffSummary(row.before, row.after))}</td>
+      <td>${escapeText(row.reason || '')}</td>
+    </tr>${detail}`;
+  }).join('');
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Когда</th><th>Кто</th><th>Действие</th><th>Запись</th><th>Изменения</th><th>Причина</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+  wrap.querySelectorAll('tr[data-aid]').forEach(tr => tr.onclick = () => {
+    const id = parseInt(tr.dataset.aid);
+    if (audit.expanded.has(id)) audit.expanded.delete(id); else audit.expanded.add(id);
+    renderAudit();
+  });
+  renderAuditPager();
+}
+
+function renderAuditPager() {
+  const p = document.getElementById('auPager');
+  const totalPages = Math.max(1, Math.ceil(audit.total / audit.limit));
+  const cur = Math.floor(audit.offset / audit.limit) + 1;
+  p.innerHTML = `<button class="btn btn-sm" id="auPrev" ${cur<=1?'disabled':''}>←</button>
+    <span>стр. ${cur} из ${totalPages} · всего ${audit.total}</span>
+    <button class="btn btn-sm" id="auNext" ${cur>=totalPages?'disabled':''}>→</button>`;
+  document.getElementById('auPrev').onclick = () => { audit.offset = Math.max(0, audit.offset - audit.limit); loadAudit(); };
+  document.getElementById('auNext').onclick = () => { audit.offset += audit.limit; loadAudit(); };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const reload = document.getElementById('auReload');
+  if (reload) reload.addEventListener('click', () => { audit.offset = 0; loadAudit(); });
+});
 </script>
 
 <!-- Theme picker: light vanilla replacement for the design-tool Tweaks panel.
@@ -2670,6 +3100,45 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 })();
 </script>
+
+<!-- Admin edit/delete attendance modals -->
+<div id="attEditModal" class="ns-modal-backdrop" hidden>
+  <div class="ns-modal" style="max-width:640px">
+    <h3 id="attEditTitle">Редактировать запись</h3>
+    <p class="ns-sub" id="attEditSub"></p>
+
+    <label>Дата</label><input type="date" id="aeDate">
+    <label>Время</label><input type="time" id="aeTime" step="60">
+    <label>Мастер</label><select id="aeMaster"></select>
+    <label>Услуга</label><select id="aeService"></select>
+    <label>Цена (₽)</label><input type="number" id="aePrice" min="0" step="10">
+    <label class="ns-checkbox"><input type="checkbox" id="aeSalon"> Салонные продукты (комиссия ниже)</label>
+    <label>Клиент</label><input type="text" id="aeClient" maxlength="200">
+    <label>Способ оплаты</label><input type="text" id="aePayment" maxlength="40">
+    <label>Заметка</label><textarea id="aeNote" maxlength="500" rows="2"></textarea>
+    <label>Причина правки (для аудита)</label><input type="text" id="aeReason" maxlength="500">
+
+    <div class="ns-preview" id="aePreview"></div>
+    <div class="ns-err" id="aeErr" hidden></div>
+    <div class="ns-modal-actions">
+      <button type="button" class="btn btn-sm" id="aeCancel">Отмена</button>
+      <button type="button" class="btn btn-sm btn-primary" id="aeOk">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div id="attDeleteModal" class="ns-modal-backdrop" hidden>
+  <div class="ns-modal">
+    <h3>Удалить запись?</h3>
+    <p class="ns-sub" id="adSummary"></p>
+    <label>Причина (необязательно)</label><input type="text" id="adReason" maxlength="500">
+    <div class="ns-err" id="adErr" hidden></div>
+    <div class="ns-modal-actions">
+      <button type="button" class="btn btn-sm" id="adCancel">Отмена</button>
+      <button type="button" class="btn btn-sm btn-danger" id="adOk">Удалить</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
