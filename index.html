@@ -1133,6 +1133,21 @@
   border-top: none;
 }
 .row-child td:first-child { padding-left: 28px; }
+.calc-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--text, #333);
+  margin: 4px 0 14px 0;
+  padding: 10px 14px;
+  background: rgba(0,0,0,.02);
+  border-left: 2px solid var(--accent, #B89882);
+  letter-spacing: .02em;
+}
+.calc-line .op { color: var(--muted, #888); font-weight: 300; }
+.calc-line strong { font-weight: 600; }
 </style>
 </head>
 <body>
@@ -1370,6 +1385,7 @@
   </div>
 
   <div class="stats" id="finStats"></div>
+  <div class="calc-line" id="finCalcLine"></div>
 
   <div class="card">
     <h2>Новый доход</h2>
