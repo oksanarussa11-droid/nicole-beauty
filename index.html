@@ -2203,16 +2203,42 @@ function renderFinance() {
   const incF = state.income.filter(i => matchMonth(i.date, month));
   const expF = state.expenses.filter(e => matchMonth(e.date, month));
 
-  const totalInc = incF.reduce((s, i) => s + Number(i.amount), 0);
+  // Service revenue + master commissions come from unifiedTotals (single source of truth).
+  const unified = unifiedTotals(d => matchMonth(d, month));
+  const svcRev    = unified.reduce((s, d) => s + d.revenue, 0);
+  const masterPay = unified.reduce((s, d) => s + d.master_pay, 0);
+
+  // Manual income (any category, including Услуги override) is supplementary.
+  const otherInc = incF.reduce((s, i) => s + Number(i.amount), 0);
   const totalExp = expF.reduce((s, e) => s + Number(e.amount), 0);
   const unpaid   = expF.filter(e => e.status === 'Не оплачено').reduce((s, e) => s + Number(e.amount), 0);
 
+  const netSalon = (svcRev - masterPay) + otherInc - totalExp;
+
   document.getElementById('finStats').innerHTML = `
-    <div class="stat-card green"><div class="stat-label">Доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
-    <div class="stat-card red"><div class="stat-label">Расходы</div><div class="stat-value">${fmt(totalExp)}</div></div>
-    <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(totalInc - totalExp)}</div></div>
-    <div class="stat-card orange"><div class="stat-label">Не оплачено</div><div class="stat-value">${fmt(unpaid)}</div></div>
+    <div class="stat-card green"><div class="stat-label">Выручка услуг</div><div class="stat-value">${fmt(svcRev)}</div></div>
+    <div class="stat-card orange"><div class="stat-label">Комиссии мастерам</div><div class="stat-value">${fmt(masterPay)}</div></div>
+    <div class="stat-card red"><div class="stat-label">Прочие расходы</div><div class="stat-value">${fmt(totalExp)}${unpaid ? ` <span style="font-size:11px;color:var(--muted,#888);font-weight:normal">(не оплачено: ${fmt(unpaid)})</span>` : ''}</div></div>
+    <div class="stat-card"><div class="stat-label">Чистая прибыль</div><div class="stat-value">${fmt(netSalon)}</div></div>
   `;
+
+  // Explicit arithmetic line so any manual income is visibly additive, not silently merged.
+  const calcLine = document.getElementById('finCalcLine');
+  if (calcLine) {
+    calcLine.innerHTML = `
+      <span>Выручка ${fmt(svcRev)}</span>
+      <span class="op">−</span>
+      <span>Комиссии ${fmt(masterPay)}</span>
+      <span class="op">=</span>
+      <span><strong>К зачислению ${fmt(svcRev - masterPay)}</strong></span>
+      <span class="op">+</span>
+      <span>Прочие доходы ${fmt(otherInc)}</span>
+      <span class="op">−</span>
+      <span>Прочие расходы ${fmt(totalExp)}</span>
+      <span class="op">=</span>
+      <span><strong>Чистая прибыль ${fmt(netSalon)}</strong></span>
+    `;
+  }
 
   document.getElementById('incTable').innerHTML = incF.length === 0
     ? '<tr><td colspan="6" class="empty-msg">Нет доходов</td></tr>'
