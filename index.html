@@ -2304,32 +2304,53 @@ function renderReports() {
     <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(totalInc - totalExp)}</div></div>
   `;
 
-  const masterMap = {};
+  const masterRows = [];
   unified.forEach(d => {
-    const name = masterName(d.master_id);
-    if (!masterMap[name]) masterMap[name] = { revenue: 0, payout: 0 };
-    masterMap[name].revenue += d.revenue;
-    masterMap[name].payout  += d.master_pay;
+    let row = masterRows.find(r => r.id === d.master_id);
+    if (!row) {
+      row = { id: d.master_id, name: masterName(d.master_id), revenue: 0, payout: 0 };
+      masterRows.push(row);
+    }
+    row.revenue += d.revenue;
+    row.payout  += d.master_pay;
   });
-  const mEntries = Object.entries(masterMap);
-  const maxVal = Math.max(1, ...mEntries.map(([,m]) => m.revenue));
+  const maxVal = Math.max(1, ...masterRows.map(r => r.revenue));
+  const dayMap = unifiedByMasterDay(pick);
 
-  document.getElementById('chartMasters').innerHTML = mEntries.length === 0
+  document.getElementById('chartMasters').innerHTML = masterRows.length === 0
     ? '<div class="empty-msg">Нет данных</div>'
     : `<div class="chart-bar-container">
-        ${mEntries.map(([name, m]) => `
+        ${masterRows.map(r => `
           <div class="chart-bar-group">
             <div class="chart-bars">
-              <div class="chart-bar revenue" style="height:${(m.revenue/maxVal)*140}px;" title="${fmt(m.revenue)}"></div>
-              <div class="chart-bar payout"  style="height:${(m.payout/maxVal)*140}px;"  title="${fmt(m.payout)}"></div>
-              <div class="chart-bar salon"   style="height:${((m.revenue-m.payout)/maxVal)*140}px;" title="${fmt(m.revenue-m.payout)}"></div>
+              <div class="chart-bar revenue" style="height:${(r.revenue/maxVal)*140}px;" title="${fmt(r.revenue)}"></div>
+              <div class="chart-bar payout"  style="height:${(r.payout/maxVal)*140}px;"  title="${fmt(r.payout)}"></div>
+              <div class="chart-bar salon"   style="height:${((r.revenue-r.payout)/maxVal)*140}px;" title="${fmt(r.revenue-r.payout)}"></div>
             </div>
-            <div class="chart-bar-label">${name}</div>
+            <div class="chart-bar-label">${r.name}</div>
           </div>`).join('')}
       </div>
       <table style="margin-top:10px;">
         <tr><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Салону</th></tr>
-        ${mEntries.map(([name, m]) => `<tr><td>${name}</td><td>${fmt(m.revenue)}</td><td>${fmt(m.payout)}</td><td>${fmt(m.revenue-m.payout)}</td></tr>`).join('')}
+        ${masterRows.map(r => {
+          const open = state.uiExpandedReport.has(r.id);
+          const caret = open ? '<i class="ph-light ph-caret-down expand-caret"></i>' : '<i class="ph-light ph-caret-right expand-caret"></i>';
+          const head = `<tr class="row-expand" onclick="toggleReportExpand(${r.id})">
+            <td>${caret} ${r.name}</td>
+            <td>${fmt(r.revenue)}</td>
+            <td>${fmt(r.payout)}</td>
+            <td>${fmt(r.revenue - r.payout)}</td>
+          </tr>`;
+          if (!open) return head;
+          const days = dayMap.get(r.id) || [];
+          const child = days.map(d => `<tr class="row-child">
+            <td>${fmtDate(d.date)}</td>
+            <td>${fmt(d.revenue)}</td>
+            <td>${fmt(d.master_pay)}</td>
+            <td>${fmt(d.revenue - d.master_pay)}</td>
+          </tr>`).join('');
+          return head + child;
+        }).join('')}
       </table>`;
 
   if (totalInc === 0 && totalExp === 0) {
@@ -2410,6 +2431,12 @@ function renderReports() {
         </tr>`;
   }
 }
+
+window.toggleReportExpand = function(masterId) {
+  const s = state.uiExpandedReport;
+  if (s.has(masterId)) s.delete(masterId); else s.add(masterId);
+  renderReports();
+};
 
 // ===================== REPORT PRESETS / EXPORT =====================
 function setRepPreset(kind) {
