@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css">
 <style>
   /* ============================================================
      NICOLE BEAUTY — refined design system
@@ -1236,7 +1237,7 @@
     <p style="color:var(--muted);font-size:12px;margin-bottom:10px;letter-spacing:.05em;">Записи, внесённые мастерами через их рабочую страницу.</p>
     <div class="ns-toggle-bar" id="finShowDeletedBar">
       <label><input type="checkbox" id="finShowDeleted"> Показать удалённые</label>
-      <button type="button" class="btn btn-sm btn-primary" id="attRetroBtn" style="margin-left:auto">+ Ретро-запись</button>
+      <button type="button" class="btn btn-sm btn-primary" id="attRetroBtn" style="margin-left:auto"><i class="ph-light ph-plus-circle" style="margin-right:6px;font-size:13px;vertical-align:-2px"></i>Ретро-запись</button>
     </div>
     <table>
       <thead>
@@ -2077,8 +2078,8 @@ function renderOperational() {
       : filteredAtt.map(a => {
           const cls = a.deleted_at ? ' class="ns-row-deleted"' : '';
           const actions = a.deleted_at
-            ? `<span class="ns-row-actions"><button type="button" title="Восстановить" data-act="restore" data-id="${a.id}">↩️</button></span>`
-            : `<span class="ns-row-actions"><button type="button" title="Редактировать" data-act="edit" data-id="${a.id}">✏️</button><button type="button" title="Удалить" data-act="delete" data-id="${a.id}">🗑️</button></span>`;
+            ? `<span class="ns-row-actions"><button type="button" title="Восстановить" data-act="restore" data-id="${a.id}"><i class="ph-light ph-arrow-counter-clockwise"></i></button></span>`
+            : `<span class="ns-row-actions"><button type="button" title="Редактировать" data-act="edit" data-id="${a.id}"><i class="ph-light ph-pencil-simple"></i></button><button type="button" title="Удалить" data-act="delete" data-id="${a.id}"><i class="ph-light ph-trash"></i></button></span>`;
           return `<tr${cls}>
             <td>${fmtDate(a.date)}${a.time ? ' <small style="color:var(--muted);">'+String(a.time).slice(0,5)+'</small>' : ''}</td>
             <td>${masterName(a.master_id)}</td>
@@ -3003,7 +3004,9 @@ async function loadAudit() {
 }
 
 function _actionLabel(a) {
-  return ({ create_retro:'➕ создание', update:'🛠 правка', delete:'🗑 удаление', restore:'↩ восстановление' })[a] || a;
+  const icon = ({ create_retro:'plus-circle', update:'pencil-simple', delete:'trash', restore:'arrow-counter-clockwise' })[a];
+  const label = ({ create_retro:'создание', update:'правка', delete:'удаление', restore:'восстановление' })[a] || a;
+  return icon ? `<i class="ph-light ph-${icon}" style="margin-right:6px;vertical-align:-1px"></i>${label}` : label;
 }
 function _diffSummary(before, after) {
   if (!before)  return '(новая запись)';
