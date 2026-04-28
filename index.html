@@ -2128,31 +2128,63 @@ function renderOperational() {
   }
 
   // Monthly aggregation uses unified totals (so OCR days + pro_form days are both counted).
-  const masterMap = {};
+  // Build a list of [master_id, name, m] so we can key expansions by id, not name.
+  const masterRows = [];
   unified.forEach(d => {
-    const name = masterName(d.master_id);
-    if (!masterMap[name]) masterMap[name] = { days: new Set(), revenue: 0, payout: 0 };
-    masterMap[name].days.add(d.date);
-    masterMap[name].revenue += d.revenue;
-    masterMap[name].payout  += d.master_pay;
+    let row = masterRows.find(r => r.id === d.master_id);
+    if (!row) {
+      row = { id: d.master_id, name: masterName(d.master_id), days: new Set(), revenue: 0, payout: 0 };
+      masterRows.push(row);
+    }
+    row.days.add(d.date);
+    row.revenue += d.revenue;
+    row.payout  += d.master_pay;
   });
-  const masters = Object.entries(masterMap);
+  const dayMap = unifiedByMasterDay(pick);
   const mr = document.getElementById('monthReport');
-  if (masters.length === 0) {
+  if (masterRows.length === 0) {
     mr.innerHTML = '<tr><td colspan="5" class="empty-msg">Нет данных</td></tr>';
   } else {
-    mr.innerHTML = masters.map(([name, m]) => `<tr>
-      <td>${name}</td><td style="text-align:center">${m.days.size}</td>
-      <td>${fmt(m.revenue)}</td><td>${fmt(m.payout)}</td><td>${fmt(m.revenue - m.payout)}</td>
-    </tr>`).join('') + `<tr style="font-weight:bold;background:#f8f4f7">
+    const parts = [];
+    for (const r of masterRows) {
+      const open = state.uiExpandedMonth.has(r.id);
+      const caret = open ? '<i class="ph-light ph-caret-down expand-caret"></i>' : '<i class="ph-light ph-caret-right expand-caret"></i>';
+      parts.push(`<tr class="row-expand" onclick="toggleMonthExpand(${r.id})">
+        <td>${caret} ${r.name}</td>
+        <td style="text-align:center">${r.days.size}</td>
+        <td>${fmt(r.revenue)}</td>
+        <td>${fmt(r.payout)}</td>
+        <td>${fmt(r.revenue - r.payout)}</td>
+      </tr>`);
+      if (open) {
+        const days = dayMap.get(r.id) || [];
+        for (const d of days) {
+          parts.push(`<tr class="row-child">
+            <td>${fmtDate(d.date)}</td>
+            <td></td>
+            <td>${fmt(d.revenue)}</td>
+            <td>${fmt(d.master_pay)}</td>
+            <td>${fmt(d.revenue - d.master_pay)}</td>
+          </tr>`);
+        }
+      }
+    }
+    parts.push(`<tr style="font-weight:bold;background:#f8f4f7">
       <td>ИТОГО</td>
-      <td style="text-align:center">${masters.reduce((s,[,m])=>s+m.days.size,0)}</td>
-      <td>${fmt(masters.reduce((s,[,m])=>s+m.revenue,0))}</td>
-      <td>${fmt(masters.reduce((s,[,m])=>s+m.payout,0))}</td>
-      <td>${fmt(masters.reduce((s,[,m])=>s+m.revenue-m.payout,0))}</td>
-    </tr>`;
+      <td style="text-align:center">${masterRows.reduce((s, r) => s + r.days.size, 0)}</td>
+      <td>${fmt(masterRows.reduce((s, r) => s + r.revenue, 0))}</td>
+      <td>${fmt(masterRows.reduce((s, r) => s + r.payout, 0))}</td>
+      <td>${fmt(masterRows.reduce((s, r) => s + r.revenue - r.payout, 0))}</td>
+    </tr>`);
+    mr.innerHTML = parts.join('');
   }
 }
+
+window.toggleMonthExpand = function(masterId) {
+  const s = state.uiExpandedMonth;
+  if (s.has(masterId)) s.delete(masterId); else s.add(masterId);
+  renderOperational();
+};
 
 // Safe text rendering for potential user input (client_name, note). Returns a string
 // suitable to drop into an innerHTML template that's already composed — we escape here
