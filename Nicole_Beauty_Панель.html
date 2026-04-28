@@ -189,6 +189,9 @@
   <div class="month-filter">
     <label>Месяц:</label>
     <input type="month" id="finMonth" onchange="refreshFinanceFromCloud()">
+    <label style="font-size:13px;margin-left:12px;display:flex;align-items:center;gap:4px;color:#666">
+      <input type="checkbox" id="finShowDeleted" onchange="refreshFinanceFromCloud()" style="width:auto"> Показать удалённые
+    </label>
   </div>
 
   <div class="stats" id="finStats"></div>
@@ -987,6 +990,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const lockBtn = document.getElementById('adminEditLockBtn');
   if (lockBtn) lockBtn.onclick = () => adminEdit.lock();
 });
+
+function openAttendanceDeleteModal(att) {
+  const $ = (id) => document.getElementById(id);
+  $('adSummary').textContent =
+    `${att.date} ${String(att.time||'').slice(0,5)} · ` +
+    `${(data.masters.find(m=>m.id===att.master_id)||{}).name || att.master_name || '?'} · ` +
+    `${att.service_name || '?'} · ${Number(att.price).toLocaleString('ru-RU')} ₽` +
+    (att.client_name ? ` · ${att.client_name}` : '');
+  $('adReason').value = '';
+  $('adErr').hidden = true;
+  $('attDeleteModal').hidden = false;
+  $('adCancel').onclick = () => $('attDeleteModal').hidden = true;
+  $('adOk').onclick = async () => {
+    $('adOk').disabled = true; $('adErr').hidden = true;
+    try {
+      const r = await fetch('/api/admin-attendance', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id: att.id, reason: $('adReason').value || null }),
+      });
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok) { $('adErr').textContent = j.error || 'Ошибка'; $('adErr').hidden = false; return; }
+      $('attDeleteModal').hidden = true;
+      await reloadFinanceMonth();
+    } catch (e) { $('adErr').textContent = String(e.message || e); $('adErr').hidden = false; }
+    finally { $('adOk').disabled = false; }
+  };
+}
 </script>
 <div id="attEditModal" class="ns-modal-backdrop" hidden>
   <div class="ns-modal" style="max-width:640px">
@@ -1019,6 +1050,18 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="ns-modal-actions">
       <button type="button" id="adminUnlockCancel">Отмена</button>
       <button type="button" id="adminUnlockOk" class="primary">Разблокировать</button>
+    </div>
+  </div>
+</div>
+<div id="attDeleteModal" class="ns-modal-backdrop" hidden>
+  <div class="ns-modal">
+    <h3>Удалить запись?</h3>
+    <div class="ns-muted" id="adSummary"></div>
+    <label>Причина (необязательно)<input type="text" id="adReason" maxlength="500"></label>
+    <div id="adErr" class="ns-err" hidden></div>
+    <div class="ns-modal-actions">
+      <button type="button" id="adCancel">Отмена</button>
+      <button type="button" id="adOk" class="danger">Удалить</button>
     </div>
   </div>
 </div>
