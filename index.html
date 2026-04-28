@@ -1577,6 +1577,10 @@ const state = {
   expenses: [],
   inventory: [],
   appointments: [],
+  // UI-only: which master rows are expanded in the per-master tables.
+  // Keyed by master_id (number). Not persisted across reloads.
+  uiExpandedMonth: new Set(),
+  uiExpandedReport: new Set(),
 };
 
 let sb = null;
@@ -1719,6 +1723,20 @@ function unifiedTotals(filterFn) {
     });
   }
   return out;
+}
+
+// Returns Map<master_id, Array<{date, revenue, master_pay}>> for the given filterFn.
+// Sorted by date ascending within each master. Reuses unifiedTotals so OCR day-summaries
+// and per-form attendances stay de-duplicated the same way as the parent rollup.
+function unifiedByMasterDay(filterFn) {
+  const rows = unifiedTotals(filterFn);
+  const m = new Map();
+  for (const r of rows) {
+    if (!m.has(r.master_id)) m.set(r.master_id, []);
+    m.get(r.master_id).push({ date: r.date, revenue: r.revenue, master_pay: r.master_pay });
+  }
+  for (const arr of m.values()) arr.sort((a, b) => a.date.localeCompare(b.date));
+  return m;
 }
 
 // ===================== NAVIGATION =====================
