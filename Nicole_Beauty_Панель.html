@@ -192,6 +192,7 @@
     <label style="font-size:13px;margin-left:12px;display:flex;align-items:center;gap:4px;color:#666">
       <input type="checkbox" id="finShowDeleted" onchange="refreshFinanceFromCloud()" style="width:auto"> Показать удалённые
     </label>
+    <button type="button" id="finRetroBtn" class="btn btn-primary btn-sm" style="margin-left:12px">+ Ретро-запись</button>
   </div>
 
   <div class="stats" id="finStats"></div>
@@ -989,6 +990,71 @@ function ensureAdminEditMode() {
 document.addEventListener('DOMContentLoaded', () => {
   const lockBtn = document.getElementById('adminEditLockBtn');
   if (lockBtn) lockBtn.onclick = () => adminEdit.lock();
+});
+
+async function openAttendanceCreateModal() {
+  await loadMsRates();
+  if (!data.services || !data.services.length) await loadServicesFromDb();
+  const $ = (id) => document.getElementById(id);
+  $('attEditTitle').textContent = 'Новая ретро-запись';
+  $('attEditSub').textContent = '';
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  $('aeDate').value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  $('aeTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  _populateMasterSelect($('aeMaster'), (data.masters[0]||{}).id);
+  _populateServiceSelect($('aeService'), (data.services[0]||{}).id);
+  $('aePrice').value = '';
+  $('aeSalon').checked = false;
+  $('aeClient').value = '';
+  $('aePayment').value = '';
+  $('aeNote').value = '';
+  $('aeReason').value = '';
+  $('aeErr').hidden = true;
+
+  const refreshPreview = () => {
+    const r = _previewPay(parseInt($('aeMaster').value), parseInt($('aeService').value),
+                          Number($('aePrice').value || 0), $('aeSalon').checked);
+    $('aePreview').textContent = r.txt;
+    $('aePreview').style.color = r.ok ? '#374151' : '#b91c1c';
+  };
+  ['aeMaster','aeService','aePrice','aeSalon'].forEach(id => $(id).oninput = refreshPreview);
+  ['aeMaster','aeService'].forEach(id => $(id).onchange = refreshPreview);
+  refreshPreview();
+
+  $('attEditModal').hidden = false;
+  $('aeCancel').onclick = () => $('attEditModal').hidden = true;
+  $('aeOk').onclick = async () => {
+    $('aeOk').disabled = true; $('aeErr').hidden = true;
+    try {
+      const fields = {
+        date: $('aeDate').value,
+        time: $('aeTime').value + ':00',
+        master_id:  parseInt($('aeMaster').value),
+        service_id: parseInt($('aeService').value),
+        price: Number($('aePrice').value),
+        uses_salon_products: $('aeSalon').checked,
+        client_name: $('aeClient').value || null,
+        payment_method: $('aePayment').value || null,
+        note: $('aeNote').value || null,
+      };
+      const r = await fetch('/api/admin-attendance', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', fields, reason: $('aeReason').value || null }),
+      });
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok) { $('aeErr').textContent = j.error || 'Ошибка'; $('aeErr').hidden = false; return; }
+      $('attEditModal').hidden = true;
+      await reloadFinanceMonth();
+    } catch (e) { $('aeErr').textContent = String(e.message || e); $('aeErr').hidden = false; }
+    finally { $('aeOk').disabled = false; }
+  };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const b = document.getElementById('finRetroBtn');
+  if (b) b.onclick = async () => { if (await ensureAdminEditMode()) openAttendanceCreateModal(); };
 });
 
 function openAttendanceDeleteModal(att) {
