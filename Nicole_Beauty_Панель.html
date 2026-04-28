@@ -94,6 +94,23 @@
     .header-actions button { padding: 5px 10px; font-size: 11px; }
     .btn { padding: 8px 16px; font-size: 12px; }
   }
+.ns-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.ns-modal{background:#fff;border-radius:12px;padding:20px;max-width:520px;width:92%;box-shadow:0 10px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
+.ns-modal h3{margin:0 0 8px;color:#8B5E83}
+.ns-muted{color:#666;font-size:13px;margin:0 0 12px}
+.ns-modal label{display:block;font-size:12px;color:#666;margin-top:8px}
+.ns-modal input,.ns-modal select,.ns-modal textarea{width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;margin:4px 0;font-size:14px;box-sizing:border-box}
+.ns-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.ns-modal-actions button{padding:8px 14px;border-radius:6px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer}
+.ns-modal-actions button.primary{background:#8B5E83;color:#fff;border-color:#8B5E83}
+.ns-modal-actions button.danger{background:#dc2626;color:#fff;border-color:#dc2626}
+.ns-err{color:#b91c1c;font-size:13px;margin:6px 0}
+.ns-edit-badge{position:fixed;bottom:14px;right:14px;background:#fef3c7;border:1px solid #f59e0b;border-radius:20px;padding:6px 12px;display:flex;gap:8px;align-items:center;z-index:900;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.ns-edit-badge button{background:transparent;border:0;cursor:pointer;font-size:14px}
+.ns-row-actions{display:inline-flex;gap:4px}
+.ns-row-actions button{background:transparent;border:0;cursor:pointer;padding:2px 4px;font-size:14px;opacity:.6}
+.ns-row-actions button:hover{opacity:1}
+.ns-row-deleted{opacity:.45;text-decoration:line-through}
 </style>
 </head>
 <body>
@@ -115,6 +132,7 @@
   <div class="tab" onclick="showSection('finance')">Финансы</div>
   <div class="tab" onclick="showSection('inventory')">Продукция</div>
   <div class="tab" onclick="showSection('reports')">Отчёты</div>
+  <div class="tab" onclick="showSection('audit')">Журнал правок</div>
 </div>
 
 <div class="content">
@@ -172,6 +190,10 @@
   <div class="month-filter">
     <label>Месяц:</label>
     <input type="month" id="finMonth" onchange="refreshFinanceFromCloud()">
+    <label style="font-size:13px;margin-left:12px;display:flex;align-items:center;gap:4px;color:#666">
+      <input type="checkbox" id="finShowDeleted" onchange="refreshFinanceFromCloud()" style="width:auto"> Показать удалённые
+    </label>
+    <button type="button" id="finRetroBtn" class="btn btn-primary btn-sm" style="margin-left:12px">+ Ретро-запись</button>
   </div>
 
   <div class="stats" id="finStats"></div>
@@ -179,7 +201,7 @@
   <div class="card">
     <h2>Выручка от услуг <span style="font-weight:400;color:#999;font-size:12px;">(авто из записей мастеров)</span></h2>
     <table>
-      <thead><tr><th>Дата</th><th>Мастер</th><th>Услуга</th><th>Оплата</th><th>Итого</th><th>Мастеру</th><th>Салону</th></tr></thead>
+      <thead><tr><th>Дата</th><th>Мастер</th><th>Услуга</th><th>Оплата</th><th>Итого</th><th>Мастеру</th><th>Салону</th><th></th></tr></thead>
       <tbody id="autoIncTable"></tbody>
     </table>
   </div>
@@ -298,6 +320,28 @@
   </div>
 </div>
 
+<!-- ==================== AUDIT ==================== -->
+<div class="section" id="audit">
+  <div class="card">
+    <h2>Журнал правок</h2>
+    <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:12px">
+      <div class="form-group" style="min-width:140px;flex:0 0 auto"><label>С</label><input type="date" id="auFrom"></div>
+      <div class="form-group" style="min-width:140px;flex:0 0 auto"><label>По</label><input type="date" id="auTo"></div>
+      <div class="form-group" style="min-width:160px;flex:0 0 auto"><label>Мастер</label><select id="auMaster"><option value="">(все)</option></select></div>
+      <div class="form-group" style="min-width:160px;flex:0 0 auto"><label>Действие</label><select id="auAction">
+        <option value="">(все)</option>
+        <option value="create_retro">создание</option>
+        <option value="update">правка</option>
+        <option value="delete">удаление</option>
+        <option value="restore">восстановление</option>
+      </select></div>
+      <button type="button" id="auReload" class="btn btn-primary" style="height:38px">Обновить</button>
+    </div>
+    <div id="auTableWrap"></div>
+    <div id="auPager" style="margin-top:12px;display:flex;gap:8px;align-items:center;justify-content:center"></div>
+  </div>
+</div>
+
 </div>
 
 <div class="toast" id="toast"></div>
@@ -315,6 +359,7 @@ const data = {
   income: [],
   expenses: [],
   attendances: [], // auto-loaded from Supabase per selected finance month
+  services: [],
   inventory: [
     { cat:'Constant Delight', name:'Краска для волос' },
     { cat:'Constant Delight', name:'Оксид 6%' },
@@ -343,19 +388,44 @@ async function loadAttendancesForMonth(month) {
   const [y, m] = month.split('-').map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   const to = `${month}-${String(lastDay).padStart(2,'0')}`;
-  const { data: rows, error } = await sb
-    .from('attendances')
-    .select('date, time, service_name, price, master_pay, payment_method, master_id, masters!inner(name)')
+  const showDeleted = !!document.getElementById('finShowDeleted')?.checked;
+  let q = sb.from('attendances')
+    .select('id, date, time, master_id, service_id, service_name, price, master_pay, commission_pct, uses_salon_products, client_name, payment_method, source, note, deleted_at, edited_at, masters!inner(name)')
     .gte('date', from).lte('date', to)
     .order('date', { ascending: false }).order('time', { ascending: false });
+  if (!showDeleted) q = q.is('deleted_at', null);
+  const { data: rows, error } = await q;
   if (error) { console.warn('attendances load failed:', error.message); data.attendances = []; return; }
   data.attendances = (rows || []).map(r => ({
+    id: r.id,
     date: r.date, time: r.time,
+    master_id: r.master_id,
+    service_id: r.service_id,
     service_name: r.service_name,
     price: r.price, master_pay: r.master_pay,
+    commission_pct: r.commission_pct,
+    uses_salon_products: r.uses_salon_products,
+    client_name: r.client_name,
     payment_method: r.payment_method,
+    source: r.source,
+    note: r.note,
+    deleted_at: r.deleted_at,
+    edited_at: r.edited_at,
     master_name: r.masters?.name || '',
   }));
+}
+
+async function loadMastersFromDb() {
+  if (!sb) return;
+  const { data: rows, error } = await sb.from('masters').select('id, name, spec').order('name');
+  if (error) { console.warn('masters load failed:', error.message); return; }
+  if (rows && rows.length) data.masters = rows;
+}
+async function loadServicesFromDb() {
+  if (!sb) return;
+  const { data: rows, error } = await sb.from('services').select('id, name').order('name');
+  if (error) { console.warn('services load failed:', error.message); data.services = []; return; }
+  data.services = rows || [];
 }
 
 async function refreshFinanceFromCloud() {
@@ -450,9 +520,10 @@ function showSection(id) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  const tabs = ['operational','finance','inventory','reports'];
+  const tabs = ['operational','finance','inventory','reports','audit'];
   document.querySelectorAll('.tab')[tabs.indexOf(id)].classList.add('active');
   renderAll();
+  if (id === 'audit') loadAudit();
 }
 
 // ====== RENDER ======
@@ -544,10 +615,14 @@ function renderFinance() {
   const autoTbody = document.getElementById('autoIncTable');
   if (autoTbody) {
     autoTbody.innerHTML = attF.length === 0
-      ? '<tr><td colspan="7" class="empty-msg">Нет записей за месяц</td></tr>'
+      ? '<tr><td colspan="8" class="empty-msg">Нет записей за месяц</td></tr>'
       : attF.slice().sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time)).map(a => {
           const salon = Number(a.price||0) - Number(a.master_pay||0);
-          return `<tr>
+          const cls = a.deleted_at ? ' class="ns-row-deleted"' : '';
+          const actions = a.deleted_at
+            ? `<span class="ns-row-actions"><button type="button" title="Восстановить" data-act="restore" data-id="${a.id}">↩️</button></span>`
+            : `<span class="ns-row-actions"><button type="button" title="Редактировать" data-act="edit" data-id="${a.id}">✏️</button><button type="button" title="Удалить" data-act="delete" data-id="${a.id}">🗑️</button></span>`;
+          return `<tr${cls}>
             <td>${fmtDate(a.date)} ${(a.time||'').slice(0,5)}</td>
             <td>${a.master_name || '—'}</td>
             <td>${a.service_name || '—'}</td>
@@ -555,12 +630,14 @@ function renderFinance() {
             <td>${fmt(a.price||0)}</td>
             <td>${fmt(a.master_pay||0)}</td>
             <td>${fmt(salon)}</td>
+            <td>${actions}</td>
           </tr>`;
         }).join('') + `<tr style="font-weight:bold;background:#f8f4f7">
           <td colspan="4">ИТОГО</td>
           <td>${fmt(autoServices)}</td>
           <td>${fmt(autoMasters)}</td>
           <td>${fmt(autoSalon)}</td>
+          <td></td>
         </tr>`;
   }
 
@@ -745,8 +822,420 @@ document.getElementById('opMonth').value = thisMonth();
 document.getElementById('finMonth').value = thisMonth();
 document.getElementById('repMonth').value = thisMonth();
 initSupabase();
+loadMastersFromDb();
+loadServicesFromDb();
 renderAll();
 refreshFinanceFromCloud();
+
+let _msRatesCache = null;
+async function loadMsRates() {
+  if (_msRatesCache) return _msRatesCache;
+  if (!sb) return [];
+  const { data: rows, error } = await sb
+    .from('master_services')
+    .select('master_id, service_id, price, commission_master_pct, commission_master_pct_salon');
+  if (error) { console.warn('master_services load failed:', error.message); return []; }
+  _msRatesCache = rows || [];
+  return _msRatesCache;
+}
+
+function _findRate(masterId, serviceId) {
+  return (_msRatesCache || []).find(r => r.master_id === masterId && r.service_id === serviceId);
+}
+
+function _previewPay(masterId, serviceId, price, usesSalon) {
+  const r = _findRate(masterId, serviceId);
+  if (!r) return { txt: 'Услуга не настроена для этого мастера', ok: false };
+  const pct = usesSalon ? Number(r.commission_master_pct_salon) : Number(r.commission_master_pct);
+  const pay = Math.round(price * pct) / 100;
+  const max = (Number(r.price) || 0) * 10;
+  if (max && price > max) return { txt: `Цена превышает лимит (макс ${max} ₽)`, ok: false };
+  return { txt: `Мастеру: ${pay.toLocaleString('ru-RU')} ₽ (${pct}%)`, ok: true };
+}
+
+function _populateMasterSelect(sel, selectedId) {
+  sel.innerHTML = (data.masters || [])
+    .map(m => `<option value="${m.id}" ${m.id===selectedId?'selected':''}>${m.name}</option>`).join('');
+}
+function _populateServiceSelect(sel, selectedId) {
+  sel.innerHTML = (data.services || [])
+    .map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${s.name}</option>`).join('');
+}
+
+async function openAttendanceEditModal(att) {
+  await loadMsRates();
+  if (!data.services || !data.services.length) await loadServicesFromDb();
+  const $ = (id) => document.getElementById(id);
+  $('attEditTitle').textContent = 'Редактировать запись';
+  $('attEditSub').textContent = `id=${att.id} · ${att.date} ${String(att.time||'').slice(0,5)}`;
+  $('aeDate').value = att.date;
+  $('aeTime').value = String(att.time || '').slice(0,5);
+  _populateMasterSelect($('aeMaster'), att.master_id);
+  _populateServiceSelect($('aeService'), att.service_id);
+  $('aePrice').value  = att.price;
+  $('aeSalon').checked = !!att.uses_salon_products;
+  $('aeClient').value = att.client_name || '';
+  $('aePayment').value = att.payment_method || '';
+  $('aeNote').value = att.note || '';
+  $('aeReason').value = '';
+  $('aeErr').hidden = true;
+
+  const refreshPreview = () => {
+    const r = _previewPay(parseInt($('aeMaster').value), parseInt($('aeService').value),
+                          Number($('aePrice').value || 0), $('aeSalon').checked);
+    $('aePreview').textContent = r.txt;
+    $('aePreview').style.color = r.ok ? '#374151' : '#b91c1c';
+  };
+  ['aeMaster','aeService','aePrice','aeSalon'].forEach(id => $(id).oninput = refreshPreview);
+  ['aeMaster','aeService'].forEach(id => $(id).onchange = refreshPreview);
+  refreshPreview();
+
+  $('attEditModal').hidden = false;
+  $('aeCancel').onclick = () => $('attEditModal').hidden = true;
+  $('aeOk').onclick = async () => {
+    $('aeOk').disabled = true; $('aeErr').hidden = true;
+    try {
+      const fields = {
+        date: $('aeDate').value,
+        time: $('aeTime').value ? $('aeTime').value + ':00' : null,
+        master_id:  parseInt($('aeMaster').value),
+        service_id: parseInt($('aeService').value),
+        price: Number($('aePrice').value),
+        uses_salon_products: $('aeSalon').checked,
+        client_name: $('aeClient').value || null,
+        payment_method: $('aePayment').value || null,
+        note: $('aeNote').value || null,
+      };
+      const r = await fetch('/api/admin-attendance', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update', id: att.id, fields, reason: $('aeReason').value || null }),
+      });
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok) { $('aeErr').textContent = j.error || 'Ошибка'; $('aeErr').hidden = false; return; }
+      $('attEditModal').hidden = true;
+      await reloadFinanceMonth();
+    } catch (e) { $('aeErr').textContent = String(e.message || e); $('aeErr').hidden = false; }
+    finally { $('aeOk').disabled = false; }
+  };
+}
+
+async function reloadFinanceMonth() {
+  const month = document.getElementById('finMonth')?.value || (() => { const d=new Date(); return d.toISOString().slice(0,7); })();
+  await loadAttendancesForMonth(month);
+  renderFinance();
+}
+
+async function confirmRestore(att) {
+  if (!confirm(`Восстановить запись id=${att.id}?`)) return;
+  const r = await fetch('/api/admin-attendance', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'restore', id: att.id }),
+  });
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok) { alert('Ошибка: ' + (j.error || r.status)); return; }
+  await reloadFinanceMonth();
+}
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('#autoIncTable button[data-act]');
+  if (!btn) return;
+  const id = parseInt(btn.dataset.id);
+  const act = btn.dataset.act;
+  if (!id || !act) return;
+  if (!(await ensureAdminEditMode())) return;
+  const att = (data.attendances || []).find(a => a.id === id);
+  if (!att) { alert('Запись не найдена в локальном кеше — обновите страницу.'); return; }
+  if (act === 'edit')    openAttendanceEditModal(att);
+  if (act === 'delete')  openAttendanceDeleteModal(att);
+  if (act === 'restore') confirmRestore(att);
+});
+
+// ─── Admin edit-mode state ─────────────────────────────────────────
+const adminEdit = {
+  expiresAt: 0,
+  tickHandle: null,
+  isUnlocked() { return Date.now() / 1000 < this.expiresAt; },
+  unlock(expSeconds) {
+    this.expiresAt = expSeconds || (Math.floor(Date.now()/1000) + 15*60);
+    this._renderBadge();
+    if (!this.tickHandle) this.tickHandle = setInterval(() => this._renderBadge(), 30 * 1000);
+  },
+  lock() {
+    this.expiresAt = 0;
+    if (this.tickHandle) { clearInterval(this.tickHandle); this.tickHandle = null; }
+    this._renderBadge();
+    fetch('/api/admin-session?end=1', { method: 'POST', credentials: 'same-origin' }).catch(()=>{});
+  },
+  _renderBadge() {
+    const el = document.getElementById('adminEditBadge');
+    if (!el) return;
+    if (!this.isUnlocked()) { el.hidden = true; return; }
+    el.hidden = false;
+    const minsLeft = Math.max(0, Math.ceil((this.expiresAt - Date.now()/1000) / 60));
+    document.getElementById('adminEditBadgeTxt').textContent = `🔓 Режим правки активен (осталось ${minsLeft} мин)`;
+  },
+};
+
+function ensureAdminEditMode() {
+  if (adminEdit.isUnlocked()) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const modal = document.getElementById('adminUnlockModal');
+    const pwd   = document.getElementById('adminUnlockPwd');
+    const err   = document.getElementById('adminUnlockErr');
+    const ok    = document.getElementById('adminUnlockOk');
+    const cancel= document.getElementById('adminUnlockCancel');
+    pwd.value = ''; err.hidden = true; modal.hidden = false; setTimeout(()=>pwd.focus(), 30);
+    const close = (result) => {
+      modal.hidden = true;
+      ok.onclick = null; cancel.onclick = null; pwd.onkeydown = null;
+      resolve(result);
+    };
+    ok.onclick = async () => {
+      ok.disabled = true;
+      try {
+        const r = await fetch('/api/admin-session', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ admin_password: pwd.value }),
+        });
+        const j = await r.json().catch(()=>({}));
+        if (!r.ok) { err.textContent = j.error || 'Ошибка'; err.hidden = false; ok.disabled = false; return; }
+        adminEdit.unlock(j.expires_at);
+        close(true);
+      } catch (e) { err.textContent = String(e.message || e); err.hidden = false; ok.disabled = false; }
+    };
+    cancel.onclick = () => close(false);
+    pwd.onkeydown = (e) => { if (e.key === 'Enter') ok.click(); };
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const lockBtn = document.getElementById('adminEditLockBtn');
+  if (lockBtn) lockBtn.onclick = () => adminEdit.lock();
+});
+
+const audit = { rows: [], total: 0, limit: 50, offset: 0, expanded: new Set() };
+
+async function loadAudit() {
+  if (!(await ensureAdminEditMode())) return;
+  const $ = id => document.getElementById(id);
+  const sel = $('auMaster');
+  if (sel && sel.options.length <= 1) {
+    sel.innerHTML = '<option value="">(все)</option>' +
+      (data.masters || []).map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  }
+  const params = new URLSearchParams();
+  if ($('auFrom').value) params.set('from', $('auFrom').value);
+  if ($('auTo').value)   params.set('to',   $('auTo').value);
+  if ($('auMaster').value) params.set('master_id', $('auMaster').value);
+  if ($('auAction').value) params.set('action', $('auAction').value);
+  params.set('limit',  audit.limit);
+  params.set('offset', audit.offset);
+  const r = await fetch('/api/admin-audit?' + params.toString(), { credentials: 'same-origin' });
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok) { $('auTableWrap').textContent = j.error || 'Ошибка'; return; }
+  audit.rows = j.rows || []; audit.total = j.total || audit.rows.length;
+  renderAudit();
+}
+
+function _masterName(id) { return (data.masters.find(m=>m.id===id)||{}).name || (id ? `id=${id}` : '—'); }
+function _actionLabel(a) {
+  return { create_retro:'➕ создание', update:'🛠️ правка', delete:'🗑️ удаление', restore:'↩️ восстановление' }[a] || a;
+}
+function _diffSummary(before, after) {
+  if (!before)  return '(новая запись)';
+  if (!after)   return '(удалена)';
+  const watch = ['date','time','master_id','service_id','price','master_pay','commission_pct','uses_salon_products','client_name','payment_method','note'];
+  const diffs = watch.filter(k => String(before[k] ?? '') !== String(after[k] ?? ''));
+  return diffs.length ? diffs.map(k => `${k}: ${before[k] ?? '—'} → ${after[k] ?? '—'}`).join('; ') : '(без изменений)';
+}
+function _escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderAudit() {
+  const wrap = document.getElementById('auTableWrap');
+  if (!audit.rows.length) { wrap.innerHTML = '<p class="empty-msg">Нет записей.</p>'; renderAuditPager(); return; }
+  const rows = audit.rows.map(row => {
+    const masterId = row.before?.master_id ?? row.after?.master_id;
+    const expanded = audit.expanded.has(row.id);
+    const detail = expanded ? `<tr><td colspan="6"><pre style="white-space:pre-wrap;background:#f9fafb;padding:8px;border-radius:6px;font-size:12px;max-height:300px;overflow:auto">BEFORE: ${_escapeHtml(JSON.stringify(row.before, null, 2))}\n\nAFTER:  ${_escapeHtml(JSON.stringify(row.after, null, 2))}</pre></td></tr>` : '';
+    return `<tr data-aid="${row.id}" style="cursor:pointer">
+      <td>${new Date(row.created_at).toLocaleString('ru-RU')}</td>
+      <td>${_escapeHtml(row.actor)}</td>
+      <td>${_actionLabel(row.action)}</td>
+      <td>id=${row.attendance_id}<br><small>${_escapeHtml(_masterName(masterId))}</small></td>
+      <td>${_escapeHtml(_diffSummary(row.before, row.after))}</td>
+      <td>${_escapeHtml(row.reason || '')}</td>
+    </tr>${detail}`;
+  }).join('');
+  wrap.innerHTML = `<table><thead><tr><th>Когда</th><th>Кто</th><th>Действие</th><th>Запись</th><th>Изменения</th><th>Причина</th></tr></thead><tbody>${rows}</tbody></table>`;
+  wrap.querySelectorAll('tr[data-aid]').forEach(tr => tr.onclick = () => {
+    const id = parseInt(tr.dataset.aid);
+    if (audit.expanded.has(id)) audit.expanded.delete(id); else audit.expanded.add(id);
+    renderAudit();
+  });
+  renderAuditPager();
+}
+
+function renderAuditPager() {
+  const p = document.getElementById('auPager');
+  const totalPages = Math.max(1, Math.ceil(audit.total / audit.limit));
+  const cur = Math.floor(audit.offset / audit.limit) + 1;
+  p.innerHTML = `<button class="btn btn-sm" id="auPrev" ${cur<=1?'disabled':''}>←</button>
+    <span style="font-size:13px;color:#666">стр. ${cur} из ${totalPages} · всего ${audit.total}</span>
+    <button class="btn btn-sm" id="auNext" ${cur>=totalPages?'disabled':''}>→</button>`;
+  document.getElementById('auPrev').onclick = () => { audit.offset = Math.max(0, audit.offset - audit.limit); loadAudit(); };
+  document.getElementById('auNext').onclick = () => { audit.offset += audit.limit; loadAudit(); };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const reload = document.getElementById('auReload');
+  if (reload) reload.onclick = () => { audit.offset = 0; loadAudit(); };
+});
+
+async function openAttendanceCreateModal() {
+  await loadMsRates();
+  if (!data.services || !data.services.length) await loadServicesFromDb();
+  const $ = (id) => document.getElementById(id);
+  $('attEditTitle').textContent = 'Новая ретро-запись';
+  $('attEditSub').textContent = '';
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  $('aeDate').value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  $('aeTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  _populateMasterSelect($('aeMaster'), (data.masters[0]||{}).id);
+  _populateServiceSelect($('aeService'), (data.services[0]||{}).id);
+  $('aePrice').value = '';
+  $('aeSalon').checked = false;
+  $('aeClient').value = '';
+  $('aePayment').value = '';
+  $('aeNote').value = '';
+  $('aeReason').value = '';
+  $('aeErr').hidden = true;
+
+  const refreshPreview = () => {
+    const r = _previewPay(parseInt($('aeMaster').value), parseInt($('aeService').value),
+                          Number($('aePrice').value || 0), $('aeSalon').checked);
+    $('aePreview').textContent = r.txt;
+    $('aePreview').style.color = r.ok ? '#374151' : '#b91c1c';
+  };
+  ['aeMaster','aeService','aePrice','aeSalon'].forEach(id => $(id).oninput = refreshPreview);
+  ['aeMaster','aeService'].forEach(id => $(id).onchange = refreshPreview);
+  refreshPreview();
+
+  $('attEditModal').hidden = false;
+  $('aeCancel').onclick = () => $('attEditModal').hidden = true;
+  $('aeOk').onclick = async () => {
+    $('aeOk').disabled = true; $('aeErr').hidden = true;
+    try {
+      const fields = {
+        date: $('aeDate').value,
+        time: $('aeTime').value + ':00',
+        master_id:  parseInt($('aeMaster').value),
+        service_id: parseInt($('aeService').value),
+        price: Number($('aePrice').value),
+        uses_salon_products: $('aeSalon').checked,
+        client_name: $('aeClient').value || null,
+        payment_method: $('aePayment').value || null,
+        note: $('aeNote').value || null,
+      };
+      const r = await fetch('/api/admin-attendance', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', fields, reason: $('aeReason').value || null }),
+      });
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok) { $('aeErr').textContent = j.error || 'Ошибка'; $('aeErr').hidden = false; return; }
+      $('attEditModal').hidden = true;
+      await reloadFinanceMonth();
+    } catch (e) { $('aeErr').textContent = String(e.message || e); $('aeErr').hidden = false; }
+    finally { $('aeOk').disabled = false; }
+  };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const b = document.getElementById('finRetroBtn');
+  if (b) b.onclick = async () => { if (await ensureAdminEditMode()) openAttendanceCreateModal(); };
+});
+
+function openAttendanceDeleteModal(att) {
+  const $ = (id) => document.getElementById(id);
+  $('adSummary').textContent =
+    `${att.date} ${String(att.time||'').slice(0,5)} · ` +
+    `${(data.masters.find(m=>m.id===att.master_id)||{}).name || att.master_name || '?'} · ` +
+    `${att.service_name || '?'} · ${Number(att.price).toLocaleString('ru-RU')} ₽` +
+    (att.client_name ? ` · ${att.client_name}` : '');
+  $('adReason').value = '';
+  $('adErr').hidden = true;
+  $('attDeleteModal').hidden = false;
+  $('adCancel').onclick = () => $('attDeleteModal').hidden = true;
+  $('adOk').onclick = async () => {
+    $('adOk').disabled = true; $('adErr').hidden = true;
+    try {
+      const r = await fetch('/api/admin-attendance', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id: att.id, reason: $('adReason').value || null }),
+      });
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok) { $('adErr').textContent = j.error || 'Ошибка'; $('adErr').hidden = false; return; }
+      $('attDeleteModal').hidden = true;
+      await reloadFinanceMonth();
+    } catch (e) { $('adErr').textContent = String(e.message || e); $('adErr').hidden = false; }
+    finally { $('adOk').disabled = false; }
+  };
+}
 </script>
+<div id="attEditModal" class="ns-modal-backdrop" hidden>
+  <div class="ns-modal" style="max-width:640px">
+    <h3 id="attEditTitle">Редактировать запись</h3>
+    <div class="ns-muted" id="attEditSub"></div>
+    <label>Дата<input type="date" id="aeDate"></label>
+    <label>Время<input type="time" id="aeTime" step="60"></label>
+    <label>Мастер<select id="aeMaster"></select></label>
+    <label>Услуга<select id="aeService"></select></label>
+    <label>Цена (₽)<input type="number" id="aePrice" min="0" step="10"></label>
+    <label><input type="checkbox" id="aeSalon" style="width:auto;display:inline-block;margin-right:6px"> Салонные продукты (комиссия ниже)</label>
+    <label>Клиент<input type="text" id="aeClient" maxlength="200"></label>
+    <label>Оплата<input type="text" id="aePayment" maxlength="40"></label>
+    <label>Заметка<textarea id="aeNote" maxlength="500" rows="2"></textarea></label>
+    <label>Причина правки (для аудита)<input type="text" id="aeReason" maxlength="500"></label>
+    <div class="ns-muted" id="aePreview"></div>
+    <div id="aeErr" class="ns-err" hidden></div>
+    <div class="ns-modal-actions">
+      <button type="button" id="aeCancel">Отмена</button>
+      <button type="button" id="aeOk" class="primary">Сохранить</button>
+    </div>
+  </div>
+</div>
+<div id="adminUnlockModal" class="ns-modal-backdrop" hidden>
+  <div class="ns-modal">
+    <h3>Режим правки</h3>
+    <p class="ns-muted">Введите пароль администратора для разблокировки правок на 15 минут.</p>
+    <input id="adminUnlockPwd" type="password" autocomplete="off" placeholder="Пароль" />
+    <div id="adminUnlockErr" class="ns-err" hidden></div>
+    <div class="ns-modal-actions">
+      <button type="button" id="adminUnlockCancel">Отмена</button>
+      <button type="button" id="adminUnlockOk" class="primary">Разблокировать</button>
+    </div>
+  </div>
+</div>
+<div id="attDeleteModal" class="ns-modal-backdrop" hidden>
+  <div class="ns-modal">
+    <h3>Удалить запись?</h3>
+    <div class="ns-muted" id="adSummary"></div>
+    <label>Причина (необязательно)<input type="text" id="adReason" maxlength="500"></label>
+    <div id="adErr" class="ns-err" hidden></div>
+    <div class="ns-modal-actions">
+      <button type="button" id="adCancel">Отмена</button>
+      <button type="button" id="adOk" class="danger">Удалить</button>
+    </div>
+  </div>
+</div>
+<div id="adminEditBadge" class="ns-edit-badge" hidden>
+  <span id="adminEditBadgeTxt">🔓 Режим правки активен</span>
+  <button type="button" id="adminEditLockBtn" title="Заблокировать">🔒</button>
+</div>
 </body>
 </html>

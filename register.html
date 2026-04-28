@@ -891,6 +891,7 @@
         .select('id, time, service_name, price, master_pay, payment_method')
         .eq('master_id', session.masterId)
         .eq('date', today())
+        .is('deleted_at', null)
         .order('time', { ascending: false });
       if (error) throw error;
       state.todayAttendances = data || [];
@@ -1214,6 +1215,7 @@
         .eq('master_id', session.masterId)
         .gte('date', from)
         .lte('date', to)
+        .is('deleted_at', null)
         .order('date', { ascending: false })
         .order('time', { ascending: false });
       if (error) {
