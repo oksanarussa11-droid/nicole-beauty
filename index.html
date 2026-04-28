@@ -1522,7 +1522,12 @@ async function loadAll() {
       sb.from('services').select('*').order('name'),
       sb.from('master_services').select('*'),
       sb.from('day_summaries').select('*').order('date', { ascending: false }),
-      sb.from('attendances').select('*').is('deleted_at', null).order('date', { ascending: false }).order('time', { ascending: false }),
+      (function(){
+        const showDeleted = !!document.getElementById('finShowDeleted')?.checked;
+        let q = sb.from('attendances').select('*').order('date', { ascending: false }).order('time', { ascending: false });
+        if (!showDeleted) q = q.is('deleted_at', null);
+        return q;
+      })(),
       sb.from('income').select('*').order('date', { ascending: false }),
       sb.from('expenses').select('*').order('date', { ascending: false }),
       sb.from('inventory').select('*').order('brand').order('name'),
