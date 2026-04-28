@@ -67,11 +67,23 @@ The "Не оплачено" indicator is preserved as a small inline badge insid
 - No changes to Reports tab math beyond the per-day expansion in the master breakdown table.
 - No persistence of expansion state across page reloads.
 
+## Eliminating manual service-income entry
+
+Service revenue must come exclusively from `attendances` / `day_totals` (via `unifiedTotals`). The current "Новый доход" form on Финансы offers **Услуги** as the default option in `#incCat` (line 1363), which lets the admin re-enter revenue that the masters already logged — causing double-counting.
+
+Changes:
+
+- **Remove** `Услуги` from the `#incCat` dropdown options. Default selection becomes `Прочее` (or the first remaining option).
+- **Filter** `state.income` rows where `category === 'Услуги'` out of `Прочие доходы` in the new Финансы calculation, so any legacy rows from before this change do not double-count.
+- **Banner** rendered above the Финансы cards if any legacy `Услуги` rows exist in the selected month: muted-yellow note listing the count and total, with text inviting the admin to delete them from the Доходы table below ("Эти суммы уже учтены автоматически из журнала услуг").
+
+The Доходы table itself is unchanged — legacy rows remain visible and deletable until the admin cleans them up.
+
 ## Risks / edge cases
 
 - `unifiedTotals` already de-duplicates between OCR day-summaries and per-form attendances; reusing it (rather than re-summing `state.attendances` directly) is required to avoid double-counting.
 - A master with zero activity in the period must not render an empty expansion (the parent row simply won't be present).
-- If `state.income` contains rows whose `category` is "Услуги" entered manually to mirror service revenue, this will double-count against `Выручка услуг`. Acceptable for now: the admin is the one creating those rows, and the new layout makes the duplication obvious. A future cleanup can flag the overlap.
+- Legacy `income` rows with category `Услуги` (from before this change) are excluded from totals but still listed in the Доходы table with the banner above, so the admin can audit and delete them.
 
 ## Files touched
 
