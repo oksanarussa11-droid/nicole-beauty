@@ -1521,9 +1521,9 @@
     <h2>Выручка по мастерам</h2>
     <div id="chartMasters"></div>
     <div class="chart-legend">
-      <span><span class="chart-legend-dot" style="background:#70AD47;"></span>Выручка</span>
-      <span><span class="chart-legend-dot" style="background:#ED7D31;"></span>Мастеру</span>
-      <span><span class="chart-legend-dot" style="background:#8B5E83;"></span>Салону</span>
+      <span><span class="chart-legend-dot" style="background:#70AD47;"></span>Доходы</span>
+      <span><span class="chart-legend-dot" style="background:#E74C3C;"></span>Расходы</span>
+      <span><span class="chart-legend-dot" style="background:#8B5E83;"></span>Чистая прибыль</span>
     </div>
   </div>
 
@@ -2351,10 +2351,11 @@ function renderReports() {
   const profit   = totalRevNet + totalInc - totalExp;
 
   document.getElementById('repStats').innerHTML = `
-    <div class="stat-card green"><div class="stat-label">Выручка от услуг (за вычетом выплат мастерам)</div><div class="stat-value">${fmt(totalRevNet)}</div></div>
-    <div class="stat-card green"><div class="stat-label">Прочие доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
-    <div class="stat-card red"><div class="stat-label">Все расходы</div><div class="stat-value">${fmt(totalExp)}</div></div>
-    <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(profit)}</div></div>
+    <div class="stat-card green"><div class="stat-label">Выручка услуг</div><div class="stat-value">${fmt(totalRevGross)}</div></div>
+    <div class="stat-card"><div class="stat-label">Комиссии мастерам</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(totalMasterPay)}</div></div>
+    <div class="stat-card green clickable" onclick="showSection('finance');setTimeout(()=>document.getElementById('incCard').scrollIntoView({behavior:'smooth'}),60)" title="К списку доходов"><div class="stat-label">Прочие доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
+    <div class="stat-card clickable" onclick="showSection('finance');setTimeout(()=>document.getElementById('expCard').scrollIntoView({behavior:'smooth'}),60)" title="К списку расходов"><div class="stat-label">Прочие расходы</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(totalExp)}</div></div>
+    <div class="stat-card"><div class="stat-label">Чистая прибыль</div><div class="stat-value">${fmt(profit)}</div></div>
   `;
 
   const masterRows = [];
@@ -2367,23 +2368,52 @@ function renderReports() {
     row.revenue += d.revenue;
     row.payout  += d.master_pay;
   });
-  const maxVal = Math.max(1, ...masterRows.map(r => r.revenue));
   const dayMap = unifiedByMasterDay(pick);
 
-  document.getElementById('chartMasters').innerHTML = masterRows.length === 0
+  // Waterfall: Выручка услуг (+) → Комиссии (−) → Прочие доходы (+) → Прочие расходы (−) → Чистая прибыль.
+  const steps = [
+    { label: 'Выручка услуг',     delta:  totalRevGross,  kind: 'pos'   },
+    { label: 'Комиссии мастерам', delta: -totalMasterPay, kind: 'neg'   },
+    { label: 'Прочие доходы',     delta:  totalInc,       kind: 'pos'   },
+    { label: 'Прочие расходы',    delta: -totalExp,       kind: 'neg'   },
+    { label: 'Чистая прибыль',    delta:  profit,         kind: 'total' },
+  ];
+  let run = 0;
+  const bars = steps.map(s => {
+    if (s.kind === 'total') return { ...s, from: 0, to: profit };
+    const from = run; run += s.delta; return { ...s, from, to: run };
+  });
+  const H = 180;
+  const tops = bars.flatMap(b => [b.from, b.to]).concat([0]);
+  const yMax = Math.max(...tops);
+  const yMin = Math.min(...tops, 0);
+  const range = (yMax - yMin) || 1;
+  const yPx = v => ((v - yMin) / range) * H;
+  const colorOf = k => k === 'pos' ? '#70AD47' : k === 'neg' ? '#E74C3C' : '#8B5E83';
+  const zeroPx = yPx(0);
+
+  const hasAnyData = totalRevGross || totalInc || totalExp;
+  const waterfall = !hasAnyData
     ? '<div class="empty-msg">Нет данных</div>'
-    : `<div class="chart-bar-container">
-        ${masterRows.map(r => `
-          <div class="chart-bar-group">
-            <div class="chart-bars">
-              <div class="chart-bar revenue" style="height:${(r.revenue/maxVal)*140}px;" title="${fmt(r.revenue)}"></div>
-              <div class="chart-bar payout"  style="height:${(r.payout/maxVal)*140}px;"  title="${fmt(r.payout)}"></div>
-              <div class="chart-bar salon"   style="height:${((r.revenue-r.payout)/maxVal)*140}px;" title="${fmt(r.revenue-r.payout)}"></div>
-            </div>
-            <div class="chart-bar-label">${r.name}</div>
-          </div>`).join('')}
-      </div>
-      <table style="margin-top:10px;">
+    : `<div style="position:relative;height:${H + 28}px;display:flex;align-items:flex-end;gap:14px;padding:0 6px;">
+        <div style="position:absolute;left:6px;right:6px;bottom:${zeroPx}px;border-top:1px dashed var(--hairline-strong);"></div>
+        ${bars.map(b => {
+          const top = Math.max(b.from, b.to);
+          const bot = Math.min(b.from, b.to);
+          const h = Math.max(2, yPx(top) - yPx(bot));
+          const bottom = yPx(bot);
+          return `<div style="flex:1;position:relative;height:${H}px;">
+            <div title="${fmt(b.delta)}" style="position:absolute;left:10%;right:10%;bottom:${bottom}px;height:${h}px;background:${colorOf(b.kind)};border-radius:4px 4px 0 0;"></div>
+            <div style="position:absolute;left:0;right:0;bottom:${bottom + h + 2}px;text-align:center;font-size:11px;color:var(--muted);">${b.kind==='neg'?'−':''}${fmt(Math.abs(b.delta))}</div>
+            <div style="position:absolute;left:0;right:0;top:${H + 6}px;text-align:center;font-size:11px;letter-spacing:.04em;">${b.label}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+
+  document.getElementById('chartMasters').innerHTML = masterRows.length === 0 && !hasAnyData
+    ? '<div class="empty-msg">Нет данных</div>'
+    : `${waterfall}
+      <table style="margin-top:14px;">
         <tr><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Салону</th></tr>
         ${masterRows.map(r => {
           const open = state.uiExpandedReport.has(r.id);
