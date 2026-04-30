@@ -2395,7 +2395,7 @@ function renderReports() {
   const hasAnyData = totalRevGross || totalInc || totalExp;
   const waterfall = !hasAnyData
     ? '<div class="empty-msg">Нет данных</div>'
-    : `<div style="position:relative;height:${H + 28}px;display:flex;align-items:flex-end;gap:14px;padding:0 6px;">
+    : `<div style="position:relative;height:${H + 28}px;display:flex;align-items:flex-end;gap:14px;padding:0 6px;max-width:50%;margin:0 auto;">
         <div style="position:absolute;left:6px;right:6px;bottom:${zeroPx}px;border-top:1px dashed var(--hairline-strong);"></div>
         ${bars.map(b => {
           const top = Math.max(b.from, b.to);
@@ -2413,7 +2413,7 @@ function renderReports() {
   document.getElementById('chartMasters').innerHTML = masterRows.length === 0 && !hasAnyData
     ? '<div class="empty-msg">Нет данных</div>'
     : `${waterfall}
-      <table style="margin-top:14px;">
+      <table style="margin-top:36px;">
         <tr><th>Мастер</th><th>Выручка</th><th>Мастеру</th><th>Салону</th></tr>
         ${masterRows.map(r => {
           const open = state.uiExpandedReport.has(r.id);
@@ -2442,7 +2442,7 @@ function renderReports() {
     const fMax   = Math.max(1, totalInc, totalExp);
     const profit = totalInc - totalExp;
     document.getElementById('chartFinance').innerHTML = `
-      <div class="chart-bar-container">
+      <div class="chart-bar-container" style="max-width:50%;margin:0 auto;">
         <div class="chart-bar-group">
           <div class="chart-bars"><div class="chart-bar revenue" style="height:${(totalInc/fMax)*140}px;" title="${fmt(totalInc)}"></div></div>
           <div class="chart-bar-label">Доходы</div>
