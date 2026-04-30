@@ -403,6 +403,8 @@
   .stat-card.green::before  { background: var(--positive); }
   .stat-card.red::before    { background: var(--negative); }
   .stat-card.orange::before { background: var(--warm); }
+  .stat-card.clickable { cursor: pointer; }
+  .stat-card.clickable:hover { background: var(--surface-2); transform: translateY(-1px); transition: transform .12s ease; }
   .stat-label {
     font-size: 10px;
     color: var(--muted);
@@ -1385,7 +1387,6 @@
   </div>
 
   <div class="stats" id="finStats"></div>
-  <div class="calc-line" id="finCalcLine"></div>
 
   <div class="card">
     <h2>Новый доход</h2>
@@ -1425,7 +1426,7 @@
     <button class="btn btn-primary" onclick="addExpense()" style="margin-top:6px;">Добавить расход</button>
   </div>
 
-  <div class="card">
+  <div class="card" id="incCard">
     <h2>Доходы</h2>
     <table>
       <thead><tr><th>Дата</th><th>Категория</th><th>Описание</th><th>Сумма</th><th>Оплата</th><th></th></tr></thead>
@@ -1433,7 +1434,7 @@
     </table>
   </div>
 
-  <div class="card">
+  <div class="card" id="expCard">
     <h2>Расходы</h2>
     <table>
       <thead><tr><th>Дата</th><th>Категория</th><th>Описание</th><th>Сумма</th><th>Поставщик</th><th>Статус</th><th></th></tr></thead>
@@ -2232,29 +2233,12 @@ function renderFinance() {
   const netSalon = (svcRev - masterPay) + otherInc - totalExp;
 
   document.getElementById('finStats').innerHTML = `
-    <div class="stat-card green"><div class="stat-label">Выручка услуг</div><div class="stat-value">${fmt(svcRev)}</div></div>
-    <div class="stat-card orange"><div class="stat-label">Комиссии мастерам</div><div class="stat-value">${fmt(masterPay)}</div></div>
-    <div class="stat-card red"><div class="stat-label">Прочие расходы</div><div class="stat-value">${fmt(totalExp)}${unpaid ? ` <span style="font-size:11px;color:var(--muted,#888);font-weight:normal">(не оплачено: ${fmt(unpaid)})</span>` : ''}</div></div>
+    <div class="stat-card green clickable" onclick="showSection('reports')" title="Перейти в Отчёты"><div class="stat-label">Выручка услуг</div><div class="stat-value">${fmt(svcRev)}</div></div>
+    <div class="stat-card clickable" onclick="showSection('reports')" title="Перейти в Отчёты"><div class="stat-label">Комиссии мастерам</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(masterPay)}</div></div>
+    <div class="stat-card green clickable" onclick="document.getElementById('incCard').scrollIntoView({behavior:'smooth'})" title="К списку доходов"><div class="stat-label">Прочие доходы</div><div class="stat-value">${fmt(otherInc)}</div></div>
+    <div class="stat-card clickable" onclick="document.getElementById('expCard').scrollIntoView({behavior:'smooth'})" title="К списку расходов"><div class="stat-label">Прочие расходы</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(totalExp)}${unpaid ? ` <span style="font-size:11px;color:var(--muted,#888);font-weight:normal">(не оплачено: ${fmt(unpaid)})</span>` : ''}</div></div>
     <div class="stat-card"><div class="stat-label">Чистая прибыль</div><div class="stat-value">${fmt(netSalon)}</div></div>
   `;
-
-  // Explicit arithmetic line so any manual income is visibly additive, not silently merged.
-  const calcLine = document.getElementById('finCalcLine');
-  if (calcLine) {
-    calcLine.innerHTML = `
-      <span>Выручка ${fmt(svcRev)}</span>
-      <span class="op">−</span>
-      <span>Комиссии ${fmt(masterPay)}</span>
-      <span class="op">=</span>
-      <span><strong>К зачислению ${fmt(svcRev - masterPay)}</strong></span>
-      <span class="op">+</span>
-      <span>Прочие доходы ${fmt(otherInc)}</span>
-      <span class="op">−</span>
-      <span>Прочие расходы ${fmt(totalExp)}</span>
-      <span class="op">=</span>
-      <span><strong>Чистая прибыль ${fmt(netSalon)}</strong></span>
-    `;
-  }
 
   document.getElementById('incTable').innerHTML = incF.length === 0
     ? '<tr><td colspan="6" class="empty-msg">Нет доходов</td></tr>'
@@ -2340,15 +2324,18 @@ function renderReports() {
   const incF = state.income      .filter(i => pick(i.date));
   const expF = state.expenses    .filter(e => pick(e.date));
 
-  const totalRev = unified.reduce((s, d) => s + d.revenue, 0);
+  const totalRevGross  = unified.reduce((s, d) => s + d.revenue,    0);
+  const totalMasterPay = unified.reduce((s, d) => s + d.master_pay, 0);
+  const totalRevNet    = totalRevGross - totalMasterPay;
   const totalInc = incF.reduce((s, i) => s + Number(i.amount),  0);
   const totalExp = expF.reduce((s, e) => s + Number(e.amount),  0);
+  const profit   = totalRevNet + totalInc - totalExp;
 
   document.getElementById('repStats').innerHTML = `
-    <div class="stat-card green"><div class="stat-label">Выручка от услуг</div><div class="stat-value">${fmt(totalRev)}</div></div>
-    <div class="stat-card green"><div class="stat-label">Все доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
+    <div class="stat-card green"><div class="stat-label">Выручка от услуг (за вычетом выплат мастерам)</div><div class="stat-value">${fmt(totalRevNet)}</div></div>
+    <div class="stat-card green"><div class="stat-label">Прочие доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
     <div class="stat-card red"><div class="stat-label">Все расходы</div><div class="stat-value">${fmt(totalExp)}</div></div>
-    <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(totalInc - totalExp)}</div></div>
+    <div class="stat-card"><div class="stat-label">Прибыль</div><div class="stat-value">${fmt(profit)}</div></div>
   `;
 
   const masterRows = [];
