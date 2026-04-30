@@ -1511,7 +1511,7 @@
     <button class="btn btn-sm btn-primary" onclick="setRepPreset('prevMonth')">Прошлый месяц</button>
     <button class="btn btn-sm btn-primary" onclick="setRepPreset('year')">Этот год</button>
     <button class="btn btn-sm btn-primary" onclick="setRepPreset('all')">Всё</button>
-    <button class="btn btn-sm btn-primary" onclick="openReportViewer()">Просмотр и печать</button>
+    <button class="btn btn-sm btn-primary" onclick="openReportViewer()">Печать PDF</button>
     <button class="btn btn-sm" style="background:#eee;" onclick="exportReportCSV()">Экспорт CSV</button>
   </div>
 
@@ -2554,8 +2554,8 @@ function openReportViewer() {
   const params = new URLSearchParams();
   if (from) params.set('from', from);
   if (to)   params.set('to',   to);
-  const qs = params.toString();
-  window.open('/report' + (qs ? '?' + qs : ''), '_blank', 'noopener');
+  params.set('print', '1');
+  window.open('/report?' + params.toString(), '_blank', 'noopener');
 }
 
 function exportReportCSV() {

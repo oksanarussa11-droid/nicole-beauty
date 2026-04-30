@@ -500,28 +500,32 @@ function render() {
   const totalSalon  = totalRev - totalMaster;
   const totalInc    = incF.reduce((s, i) => s + Number(i.amount), 0);
   const totalExp    = expF.reduce((s, e) => s + Number(e.amount), 0);
-  const profit      = totalInc - totalExp;
+  const profit      = totalSalon + totalInc - totalExp;
   const distinctDays = new Set(unified.map(u => u.date)).size;
 
   let html = '';
 
-  // ── Stats (4 cards) ──
+  // ── Stats (5 cards) ──
   html += `<section class="section">
-    <div class="stats">
+    <div class="stats" style="grid-template-columns:repeat(5,1fr);">
       <div class="stat positive">
-        <div class="label">Выручка от услуг</div>
+        <div class="label">Выручка услуг</div>
         <div class="value">${fmt(totalRev)}</div>
       </div>
+      <div class="stat negative">
+        <div class="label">Комиссии мастерам</div>
+        <div class="value neg">${fmt(totalMaster)}</div>
+      </div>
       <div class="stat positive">
-        <div class="label">Все доходы</div>
+        <div class="label">Прочие доходы</div>
         <div class="value">${fmt(totalInc)}</div>
       </div>
       <div class="stat negative">
-        <div class="label">Все расходы</div>
-        <div class="value">${fmt(totalExp)}</div>
+        <div class="label">Прочие расходы</div>
+        <div class="value neg">${fmt(totalExp)}</div>
       </div>
       <div class="stat profit">
-        <div class="label">Прибыль</div>
+        <div class="label">Чистая прибыль</div>
         <div class="value ${profit < 0 ? 'neg' : 'pos profit'}">${fmt(Math.abs(profit))}</div>
       </div>
     </div>
@@ -812,10 +816,12 @@ function render() {
     <div class="card">
       <table>
         <tbody>
-          <tr><td>Все доходы</td><td class="num">${fmt(totalInc)}</td></tr>
-          <tr><td>Все расходы</td><td class="num">− ${fmt(totalExp)}</td></tr>
+          <tr><td>Выручка услуг</td><td class="num">${fmt(totalRev)}</td></tr>
+          <tr><td>Комиссии мастерам</td><td class="num">− ${fmt(totalMaster)}</td></tr>
+          <tr><td>Прочие доходы</td><td class="num">+ ${fmt(totalInc)}</td></tr>
+          <tr><td>Прочие расходы</td><td class="num">− ${fmt(totalExp)}</td></tr>
           <tr class="total">
-            <td>ПРИБЫЛЬ ${profit < 0 ? '(убыток)' : ''}</td>
+            <td>ЧИСТАЯ ПРИБЫЛЬ ${profit < 0 ? '(убыток)' : ''}</td>
             <td class="num">${profit < 0 ? '− ' : '+ '}${fmt(Math.abs(profit))}</td>
           </tr>
         </tbody>
@@ -824,6 +830,10 @@ function render() {
   </section>`;
 
   document.getElementById('content').innerHTML = html;
+
+  if (params.get('print') === '1') {
+    setTimeout(() => window.print(), 250);
+  }
 }
 
 function plural(n, one, few, many) {
