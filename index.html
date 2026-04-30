@@ -1232,17 +1232,9 @@
   <div class="stats" id="opStats"></div>
 
   <div class="card">
-    <h2>Итог дня</h2>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Дата</label>
-        <input type="date" id="dayDate">
-      </div>
-    </div>
-    <div class="master-grid" id="dayMasterGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;"></div>
-    <div style="margin-top:10px;">
-      <button class="btn btn-primary" onclick="addDaySummary()">Сохранить итог дня</button>
-    </div>
+    <h2>Производительность мастеров</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px;letter-spacing:.05em;">Сводка по выбранному месяцу. Ретро-записи вносятся в Журнале услуг.</p>
+    <div class="master-grid" id="dayMasterGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;"></div>
   </div>
 
   <div class="card">
@@ -2068,30 +2060,57 @@ function renderDayMasterGrid() {
     grid.innerHTML = '<div class="empty-msg">Добавьте мастеров во вкладке «Мастера»</div>';
     return;
   }
+  const month = val('opMonth');
+  const pick  = d => matchMonth(d, month);
+  const unified = unifiedTotals(pick);
+  const attMonth = state.attendances.filter(a => !a.deleted_at && pick(a.date));
   const palette = ['#70AD47', '#8B5E83', '#ED7D31', '#3E8EDE', '#C44A7A'];
+
   grid.innerHTML = state.masters.map((m, i) => {
     const color = palette[i % palette.length];
-    const rules = state.masterServices
-      .filter(ms => ms.master_id === m.id)
-      .map(ms => {
-        const own = ms.commission_master_pct;
-        const sal = ms.commission_master_pct_salon;
-        return own === sal
-          ? `${serviceName(ms.service_id)} ${own}%`
-          : `${serviceName(ms.service_id)} ${own}/${sal}%`;
-      })
-      .join(' · ') || '—';
+    const myUnified = unified.filter(u => u.master_id === m.id);
+    const myAtt     = attMonth.filter(a => a.master_id === m.id);
+
+    const revenue   = myUnified.reduce((s, u) => s + u.revenue,    0);
+    const payout    = myUnified.reduce((s, u) => s + u.master_pay, 0);
+    const salonCut  = revenue - payout;
+    const visits    = myAtt.length;
+    const daysSet   = new Set(myUnified.map(u => u.date));
+    const daysWorked = daysSet.size;
+    const avgCheck  = visits   ? revenue / visits   : 0;
+    const avgDaily  = daysWorked ? revenue / daysWorked : 0;
+
+    let bestDay = null;
+    for (const u of myUnified) {
+      if (!bestDay || u.revenue > bestDay.revenue) bestDay = u;
+    }
+
+    const svcCount = {};
+    for (const a of myAtt) {
+      const k = a.service_name || serviceName(a.service_id) || '—';
+      svcCount[k] = (svcCount[k] || 0) + 1;
+    }
+    let topSvc = null, topN = 0;
+    for (const [k, n] of Object.entries(svcCount)) if (n > topN) { topSvc = k; topN = n; }
+
+    const dash = '<span style="color:var(--muted);">—</span>';
+    const metric = (label, value) => `
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--hairline);font-size:12px;">
+        <span style="color:var(--muted);letter-spacing:.04em;">${label}</span>
+        <span style="font-weight:500;">${value}</span>
+      </div>`;
+
     return `<div style="background:#faf6f9;border-radius:10px;padding:14px;border-left:4px solid ${color};">
-      <h3 style="margin-bottom:3px;color:${color};font-size:15px;">${m.name}</h3>
-      <p style="color:#999;font-size:11px;margin-bottom:8px;">${rules}</p>
-      <div class="form-group" style="margin-bottom:6px;">
-        <label>Выручка</label>
-        <input type="number" id="dayRev_${m.id}" placeholder="0">
-      </div>
-      <div class="form-group">
-        <label>Доля мастера</label>
-        <input type="number" id="dayPay_${m.id}" placeholder="0">
-      </div>
+      <h3 style="margin-bottom:10px;color:${color};font-size:15px;">${m.name}</h3>
+      ${metric('Посещений',     visits || dash)}
+      ${metric('Дней работы',   daysWorked || dash)}
+      ${metric('Выручка',       revenue ? fmt(revenue) : dash)}
+      ${metric('Комиссия',      payout ? fmt(payout) : dash)}
+      ${metric('Салону',        revenue ? fmt(salonCut) : dash)}
+      ${metric('Средний чек',   avgCheck ? fmt(avgCheck) : dash)}
+      ${metric('В среднем в день', avgDaily ? fmt(avgDaily) : dash)}
+      ${metric('Лучший день',   bestDay ? `${fmtDate(bestDay.date)} · ${fmt(bestDay.revenue)}` : dash)}
+      ${metric('Топ-услуга',    topSvc ? `${escapeText(topSvc)} <span style="color:var(--muted);">×${topN}</span>` : dash)}
     </div>`;
   }).join('');
 }
@@ -2545,22 +2564,6 @@ function exportReportCSV() {
 }
 
 // ===================== ACTIONS =====================
-async function addDaySummary() {
-  const date = val('dayDate') || today();
-  const rows = [];
-  for (const m of state.masters) {
-    const rev = parseFloat(val(`dayRev_${m.id}`)) || 0;
-    const pay = parseFloat(val(`dayPay_${m.id}`)) || 0;
-    if (rev || pay) rows.push({ date, master_id: m.id, revenue: rev, master_pay: pay });
-  }
-  if (!rows.length) return alert('Укажите выручку хотя бы одного мастера');
-  const { error } = await sb.from('day_summaries').insert(rows);
-  if (error) return toast('Ошибка: ' + error.message, true);
-  state.masters.forEach(m => { setVal(`dayRev_${m.id}`, ''); setVal(`dayPay_${m.id}`, ''); });
-  toast('Итог дня сохранён');
-  await loadAll();
-}
-
 async function addIncome() {
   const amount = parseFloat(val('incAmount')) || 0;
   if (!amount) return alert('Укажите сумму');
@@ -2859,7 +2862,6 @@ async function unlockAdmin() {
 
 async function bootDashboard() {
   document.getElementById('todayDate').textContent = new Date().toLocaleDateString('ru-RU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  setVal('dayDate', today());
   setVal('incDate', today());
   setVal('expDate', today());
   setVal('opMonth',  thisMonth());
