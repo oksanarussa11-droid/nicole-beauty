@@ -1537,6 +1537,17 @@
       const opt = sel.options[sel.selectedIndex];
       const price = opt ? Number(opt.dataset.price) : 0;
       $('entryPrice').value = price > 0 ? price : '';
+      refreshEntryPreview();
+    }
+
+    // Recompute and re-render the split preview in the main entry card
+    // based on the current service / price / Нет-Да toggle.
+    function refreshEntryPreview() {
+      const serviceId = parseInt($('entryService').value);
+      const price = Number($('entryPrice').value);
+      const usesSalon = (document.querySelector('input[name="prodSrc"]:checked')?.value === 'salon');
+      const split = computeSplit(serviceId, price, usesSalon, state.masterServices);
+      renderSplitPreview($('splitPreview'), split);
     }
 
     // ─── Save attendance ─────────────────────────────────────────
@@ -1584,6 +1595,7 @@
         $('entryClient').value = '';
         const ownRadio = document.getElementById('prodOwn');
         if (ownRadio) ownRadio.checked = true;
+        refreshEntryPreview();
         await loadTodayAttendances();
         await refreshHistoryIfLoaded();
       } catch (e) {
@@ -1609,6 +1621,11 @@
 
       // Lazy-load history on first expansion
       $('historyCard').addEventListener('toggle', onHistoryToggle);
+
+      // Live recompute the split preview as the master changes price or toggle.
+      $('entryPrice').addEventListener('input', refreshEntryPreview);
+      $('prodOwn').addEventListener('change', refreshEntryPreview);
+      $('prodSalon').addEventListener('change', refreshEntryPreview);
     });
   </script>
 </body>
