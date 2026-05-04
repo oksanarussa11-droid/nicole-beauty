@@ -1242,6 +1242,26 @@
       $('todayTotal').style.display = 'flex';
     }
 
+    // ─── Split commission preview helpers ────────────────────────
+    // Pure: returns the master/salon split for a given service+price+toggle,
+    // or null when there is nothing to show. Mirrors the server-side rule used
+    // by api/attendance.js: usesSalon=true picks commission_master_pct_salon,
+    // false picks commission_master_pct (which is the "own products" rate).
+    // salonPay is computed by subtraction so masterPay + salonPay === price
+    // even after independent rounding of each side.
+    function computeSplit(serviceId, price, usesSalon, masterServices) {
+      if (!serviceId || !(price > 0)) return null;
+      const ms = masterServices.find(x => x.service_id === serviceId);
+      if (!ms) return null;
+      const masterPct = usesSalon
+        ? ms.commission_master_pct_salon
+        : ms.commission_master_pct;
+      const masterPay = Math.round(price * masterPct / 100);
+      const salonPay  = Math.round(price - masterPay);
+      const salonPct  = Math.round((100 - masterPct) * 100) / 100;
+      return { masterPct, masterPay, salonPct, salonPay };
+    }
+
     function escapeHtml(s) {
       return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
