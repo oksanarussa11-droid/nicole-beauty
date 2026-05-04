@@ -1025,6 +1025,7 @@
                   <input type="radio" name="selfProd-${a.id}" id="selfProdSalon-${a.id}" value="salon">
                   <label for="selfProdSalon-${a.id}">Да</label>
                 </div>
+                <div id="splitPreview-${a.id}" class="split-preview" hidden></div>
               </div>
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;">
@@ -1046,6 +1047,20 @@
           </div>
         </li>`;
       }).join('');
+
+      // Wire each appointment's self-complete form so its split preview updates
+      // live. Bindings are added every render — old DOM nodes are discarded by
+      // the innerHTML replacement above, so no manual cleanup is needed.
+      for (const a of state.upcoming) {
+        const finalEl = $('selfFinalPrice-' + a.id);
+        const ownEl   = $('selfProdOwn-' + a.id);
+        const salonEl = $('selfProdSalon-' + a.id);
+        if (finalEl) finalEl.addEventListener('input', () => refreshSelfPreview(a.id));
+        if (ownEl)   ownEl.addEventListener('change', () => refreshSelfPreview(a.id));
+        if (salonEl) salonEl.addEventListener('change', () => refreshSelfPreview(a.id));
+        // Initial render — uses the default selfFinalPrice value (estimated_price).
+        refreshSelfPreview(a.id);
+      }
     }
 
     // ─── Новая запись (master self-booking) ──────────────────────
@@ -1122,6 +1137,21 @@
       } catch (e) {
         toast('Ошибка: ' + (e.message || e), true);
       }
+    }
+
+    // Recompute and re-render the split preview for the inline self-complete
+    // form attached to upcoming appointment `id`. We look up the appointment in
+    // state.upcoming to resolve the service_id (the form itself does not carry
+    // a service select — the master is completing a pre-booked appointment).
+    function refreshSelfPreview(id) {
+      const target = $('splitPreview-' + id);
+      if (!target) return;
+      const appt = state.upcoming.find(x => x.id === id);
+      const serviceId = appt ? appt.service_id : 0;
+      const price = Number($('selfFinalPrice-' + id)?.value);
+      const salonRadio = document.getElementById('selfProdSalon-' + id);
+      const usesSalon = !!(salonRadio && salonRadio.checked);
+      renderSplitPreview(target, computeSplit(serviceId, price, usesSalon, state.masterServices));
     }
 
     function openSelfComplete(id)  { const el = $('selfComplete-' + id); if (el) el.style.display = ''; }
