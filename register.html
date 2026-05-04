@@ -258,6 +258,63 @@
       color: var(--bg);
     }
 
+    /* ─── Split commission preview (Мастеру / Салону) ─── */
+    .split-preview {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      margin-top: 10px;
+      padding: 10px 0 2px;
+      align-items: baseline;
+      position: relative;
+    }
+    .split-preview[hidden] { display: none; }
+    .split-preview::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 14px;
+      bottom: 6px;
+      width: 1px;
+      background: var(--hairline);
+    }
+    .split-side {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 0 12px;
+    }
+    .split-side.left  { align-items: flex-start; text-align: left; }
+    .split-side.right { align-items: flex-end;   text-align: right; }
+    .split-role {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: .26em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .split-side.master .split-role { color: var(--accent-deep); }
+    .split-pct-val {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .split-side.right .split-pct-val { flex-direction: row-reverse; }
+    .split-pct {
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .04em;
+    }
+    .split-val {
+      font-family: var(--serif);
+      font-size: 19px;
+      color: var(--ink-soft);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+    .split-side.master .split-val { color: var(--accent-deep); }
+
     .pro-greeting {
       display: flex;
       align-items: baseline;
@@ -708,6 +765,7 @@
             <input type="radio" name="prodSrc" id="prodSalon" value="salon">
             <label for="prodSalon">Да</label>
           </div>
+          <div id="splitPreview" class="split-preview" hidden></div>
         </div>
         <div>
           <label class="lbl" for="entryClient">Клиент (опционально)</label>
