@@ -1262,6 +1262,35 @@
       return { masterPct, masterPay, salonPct, salonPay };
     }
 
+    // Renders or hides the split preview inside `target` (the empty
+    // <div class="split-preview"> container). When split is null, the
+    // container is hidden and emptied. When split is present, builds
+    // the two-side markup and shows it.
+    function renderSplitPreview(target, split) {
+      if (!target) return;
+      if (!split) {
+        target.hidden = true;
+        target.innerHTML = '';
+        return;
+      }
+      target.innerHTML =
+        '<div class="split-side left master">' +
+          '<span class="split-role">Мастеру</span>' +
+          '<span class="split-pct-val">' +
+            '<span class="split-pct">' + split.masterPct + '%</span>' +
+            '<span class="split-val">' + fmt(split.masterPay) + '</span>' +
+          '</span>' +
+        '</div>' +
+        '<div class="split-side right">' +
+          '<span class="split-role">Салону</span>' +
+          '<span class="split-pct-val">' +
+            '<span class="split-pct">' + split.salonPct + '%</span>' +
+            '<span class="split-val">' + fmt(split.salonPay) + '</span>' +
+          '</span>' +
+        '</div>';
+      target.hidden = false;
+    }
+
     function escapeHtml(s) {
       return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
