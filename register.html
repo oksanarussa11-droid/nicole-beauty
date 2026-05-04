@@ -867,13 +867,14 @@
     async function loadServicesForMaster(masterId) {
       const { data, error } = await sb
         .from('master_services')
-        .select('service_id, price, commission_master_pct, services!inner(name)')
+        .select('service_id, price, commission_master_pct, commission_master_pct_salon, services!inner(name)')
         .eq('master_id', masterId);
       if (error) throw error;
       state.masterServices = (data || []).map(r => ({
         service_id: r.service_id,
         price: Number(r.price) || 0,
         commission_master_pct: Number(r.commission_master_pct) || 0,
+        commission_master_pct_salon: Number(r.commission_master_pct_salon) || 0,
         service_name: r.services?.name || ('#' + r.service_id),
       })).sort((a, b) => a.service_name.localeCompare(b.service_name, 'ru'));
 
