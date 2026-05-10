@@ -63,6 +63,7 @@ create table if not exists expenses (
   amount       numeric(12,2) not null default 0,
   supplier     text,
   status       text   not null default 'Не оплачено',
+  method       text,
   created_at   timestamptz not null default now()
 );
 create index if not exists expenses_date_idx on expenses(date);

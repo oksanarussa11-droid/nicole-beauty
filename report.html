@@ -758,6 +758,7 @@ function render() {
         <th>Дата</th>
         <th>Категория</th>
         <th>Описание</th>
+        <th>Способ</th>
         <th>Поставщик</th>
         <th>Статус</th>
         <th class="num">Сумма</th>
@@ -767,12 +768,13 @@ function render() {
           <td>${fmtDate(e.date)}</td>
           <td>${escapeText(e.category || '')}</td>
           <td>${escapeText(e.description || '')}</td>
+          <td>${escapeText(e.method || '')}</td>
           <td>${escapeText(e.supplier || '')}</td>
           <td>${escapeText(e.status || '')}</td>
           <td class="num">${fmt(e.amount)}</td>
         </tr>`).join('')}
         <tr class="total">
-          <td colspan="5">ИТОГО</td>
+          <td colspan="6">ИТОГО</td>
           <td class="num">${fmt(totalExp)}</td>
         </tr>
       </tbody>
