@@ -1406,7 +1406,7 @@
     <div class="form-row">
       <div class="form-group"><label>Дата</label><input type="date" id="expDate"></div>
       <div class="form-group"><label>Категория</label>
-        <select id="expCat"><option>Аренда</option><option>Коммунальные</option><option>Материалы</option><option>Реклама</option><option>Зарплата</option><option>Прочее</option></select>
+        <select id="expCat"><option>Выплата мастерам</option><option>Аренда</option><option>Коммунальные</option><option>Материалы</option><option>Реклама</option><option>Зарплата</option><option>Прочее</option></select>
       </div>
       <div class="form-group"><label>Описание</label><input type="text" id="expDesc" placeholder="Описание"></div>
       <div class="form-group"><label>Сумма</label><input type="number" id="expAmount"></div>
@@ -2250,10 +2250,13 @@ function renderFinance() {
 
   // Manual income (any category, including Услуги override) is supplementary.
   const otherInc = incF.reduce((s, i) => s + Number(i.amount), 0);
-  const totalExp = expF.reduce((s, e) => s + Number(e.amount), 0);
-  const unpaid   = expF.filter(e => e.status === 'Не оплачено').reduce((s, e) => s + Number(e.amount), 0);
+  
+  const totalExpAll = expF.reduce((s, e) => s + Number(e.amount), 0);
+  const expForProfit = expF.filter(e => e.category !== 'Выплата мастерам');
+  const totalExpForProfit = expForProfit.reduce((s, e) => s + Number(e.amount), 0);
+  const unpaidForProfit = expForProfit.filter(e => e.status === 'Не оплачено').reduce((s, e) => s + Number(e.amount), 0);
 
-  const netSalon = (svcRev - masterPay) + otherInc - totalExp;
+  const netSalon = (svcRev - masterPay) + otherInc - totalExpForProfit;
 
   const isBank = (m) => m === 'Карта' || m === 'Перевод';
   const isCash = (m) => m === 'Наличные';
@@ -2272,7 +2275,7 @@ function renderFinance() {
     <div class="stat-card green clickable" onclick="showSection('reports')" title="Перейти в Отчёты"><div class="stat-label">Выручка услуг</div><div class="stat-value">${fmt(svcRev)}</div></div>
     <div class="stat-card clickable" onclick="showSection('reports')" title="Перейти в Отчёты"><div class="stat-label">Комиссии мастерам</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(masterPay)}</div></div>
     <div class="stat-card green clickable" onclick="document.getElementById('incCard').scrollIntoView({behavior:'smooth'})" title="К списку доходов"><div class="stat-label">Прочие доходы</div><div class="stat-value">${fmt(otherInc)}</div></div>
-    <div class="stat-card clickable" onclick="document.getElementById('expCard').scrollIntoView({behavior:'smooth'})" title="К списку расходов"><div class="stat-label">Прочие расходы</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(totalExp)}${unpaid ? ` <span style="font-size:11px;color:var(--muted,#888);font-weight:normal">(не оплачено: ${fmt(unpaid)})</span>` : ''}</div></div>
+    <div class="stat-card clickable" onclick="document.getElementById('expCard').scrollIntoView({behavior:'smooth'})" title="К списку расходов"><div class="stat-label">Прочие расходы</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(totalExpForProfit)}${unpaidForProfit ? ` <span style="font-size:11px;color:var(--muted,#888);font-weight:normal">(не оплачено: ${fmt(unpaidForProfit)})</span>` : ''}</div></div>
     <div class="stat-card"><div class="stat-label">Чистая прибыль</div><div class="stat-value">${fmt(netSalon)}</div></div>
     <div class="stat-card green"><div class="stat-label">Наличные (Касса)</div><div class="stat-value">${fmt(cashBal)}</div></div>
     <div class="stat-card green"><div class="stat-label">Безналичные (Банк)</div><div class="stat-value">${fmt(bankBal)}</div></div>
@@ -2292,7 +2295,10 @@ function renderFinance() {
         <td>${fmtDate(e.date)}</td><td>${e.category}</td><td>${e.description||''}</td>
         <td>${fmt(e.amount)}</td><td>${e.method||''}</td><td>${e.supplier||''}</td>
         <td><span class="badge ${e.status === 'Оплачено' ? 'badge-paid' : 'badge-unpaid'}">${e.status}</span></td>
-        <td><button class="btn btn-danger btn-sm" onclick="delExp(${e.id})">X</button></td>
+        <td>
+          <button class="btn btn-primary btn-sm" onclick="openExpenseEditModal(${e.id})"><i class="ph-light ph-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" onclick="delExp(${e.id})">X</button>
+        </td>
       </tr>`).join('');
 }
 
@@ -2706,6 +2712,51 @@ async function saveMS(masterId, serviceId, msId) {
 async function delDay(id)     { if (!confirmDel()) return; const { error } = await sb.from('day_summaries').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 async function delInc(id)     { if (!confirmDel()) return; const { error } = await sb.from('income').delete().eq('id', id);        if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 async function delExp(id)     { if (!confirmDel()) return; const { error } = await sb.from('expenses').delete().eq('id', id);      if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
+
+function openExpenseEditModal(id) {
+  const $ = (id) => document.getElementById(id);
+  const exp = state.expenses.find(e => e.id === id);
+  if (!exp) return toast('Расход не найден', true);
+  
+  setVal('eeDate', exp.date || '');
+  setVal('eeCat', exp.category || 'Прочее');
+  setVal('eeDesc', exp.description || '');
+  setVal('eeAmount', exp.amount || 0);
+  setVal('eeSupplier', exp.supplier || '');
+  setVal('eeStatus', exp.status || 'Не оплачено');
+  setVal('eeMethod', exp.method || 'Наличные');
+  
+  $('eeErr').hidden = true;
+  $('expEditModal').hidden = false;
+  
+  $('eeCancel').onclick = () => $('expEditModal').hidden = true;
+  
+  $('eeOk').onclick = async () => {
+    $('eeOk').disabled = true;
+    try {
+      const payload = {
+        date: val('eeDate'),
+        category: val('eeCat'),
+        description: val('eeDesc'),
+        amount: parseFloat(val('eeAmount')) || 0,
+        supplier: val('eeSupplier'),
+        status: val('eeStatus'),
+        method: val('eeMethod')
+      };
+      const { error } = await sb.from('expenses').update(payload).eq('id', id);
+      if (error) throw error;
+      
+      $('expEditModal').hidden = true;
+      toast('Расход обновлён');
+      await loadAll();
+    } catch (e) {
+      $('eeErr').textContent = e.message;
+      $('eeErr').hidden = false;
+    } finally {
+      $('eeOk').disabled = false;
+    }
+  };
+}
 async function delInv(id)     { if (!confirmDel('Удалить этот продукт?')) return; const { error } = await sb.from('inventory').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 async function delMaster(id)  { if (!confirmDel('Удалить мастера? Его записи останутся, но ссылки могут сломаться.')) return; const { error } = await sb.from('masters').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 async function delService(id) { if (!confirmDel('Удалить услугу?')) return; const { error } = await sb.from('services').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
@@ -3319,6 +3370,28 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="ns-modal-actions">
       <button type="button" class="btn btn-sm" id="adCancel">Отмена</button>
       <button type="button" class="btn btn-sm btn-danger" id="adOk">Удалить</button>
+    </div>
+  </div>
+</div>
+
+<div id="expEditModal" class="ns-modal-backdrop" hidden>
+  <div class="ns-modal" style="max-width:640px">
+    <h3>Редактировать расход</h3>
+    <label>Дата</label><input type="date" id="eeDate">
+    <label>Категория</label>
+    <select id="eeCat"><option>Выплата мастерам</option><option>Аренда</option><option>Коммунальные</option><option>Материалы</option><option>Реклама</option><option>Зарплата</option><option>Прочее</option></select>
+    <label>Описание</label><input type="text" id="eeDesc" maxlength="200">
+    <label>Сумма</label><input type="number" id="eeAmount" min="0" step="1">
+    <label>Поставщик</label><input type="text" id="eeSupplier" maxlength="200">
+    <label>Статус</label>
+    <select id="eeStatus"><option>Оплачено</option><option>Не оплачено</option></select>
+    <label>Способ оплаты</label>
+    <select id="eeMethod"><option>Наличные</option><option>Карта</option><option>Перевод</option></select>
+
+    <div class="ns-err" id="eeErr" hidden></div>
+    <div class="ns-modal-actions">
+      <button type="button" class="btn btn-sm" id="eeCancel">Отмена</button>
+      <button type="button" class="btn btn-sm btn-primary" id="eeOk">Сохранить</button>
     </div>
   </div>
 </div>
