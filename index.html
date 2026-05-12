@@ -3053,7 +3053,7 @@ function openAttendanceEditModal(att) {
   $('aePrice').value  = att.price;
   $('aeSalon').checked = !!att.uses_salon_products;
   $('aeClient').value = att.client_name || '';
-  $('aePayment').value = att.payment_method || '';
+  $('aePayment').value = (att.payment_method || '').trim();
   $('aeNote').value = att.note || '';
   $('aeReason').value = '';
   $('aeErr').hidden = true;
@@ -3081,7 +3081,7 @@ function openAttendanceEditModal(att) {
         price: Number($('aePrice').value),
         uses_salon_products: $('aeSalon').checked,
         client_name: $('aeClient').value || null,
-        payment_method: $('aePayment').value || null,
+        payment_method: ($('aePayment').value || '').trim() || null,
         note: $('aeNote').value || null,
       };
       await _adminAttendanceCall({ action: 'update', id: att.id, fields, reason: $('aeReason').value || null });
@@ -3169,7 +3169,7 @@ function openAttendanceCreateModal() {
         price: Number($('aePrice').value),
         uses_salon_products: $('aeSalon').checked,
         client_name: $('aeClient').value || null,
-        payment_method: $('aePayment').value || null,
+        payment_method: ($('aePayment').value || '').trim() || null,
         note: $('aeNote').value || null,
       };
       await _adminAttendanceCall({ action: 'create', fields, reason: $('aeReason').value || null });
@@ -3348,7 +3348,12 @@ document.addEventListener('DOMContentLoaded', () => {
     <label>Цена (₽)</label><input type="number" id="aePrice" min="0" step="10">
     <label class="ns-checkbox"><input type="checkbox" id="aeSalon"> Салонные продукты (комиссия ниже)</label>
     <label>Клиент</label><input type="text" id="aeClient" maxlength="200">
-    <label>Способ оплаты</label><input type="text" id="aePayment" maxlength="40">
+    <label>Способ оплаты</label><select id="aePayment">
+      <option value="">— не указан —</option>
+      <option value="Наличные">Наличные</option>
+      <option value="Карта">Карта</option>
+      <option value="Перевод">Перевод</option>
+    </select>
     <label>Заметка</label><textarea id="aeNote" maxlength="500" rows="2"></textarea>
     <label>Причина правки (для аудита)</label><input type="text" id="aeReason" maxlength="500">
 
