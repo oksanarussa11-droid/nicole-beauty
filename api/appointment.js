@@ -243,7 +243,7 @@ async function handleCreate(body, req) {
   const row = Array.isArray(inserted) ? inserted[0] : inserted;
 
   // Telegram on create (Markdown-escaped values).
-  const masterName = auth.kind === 'master' ? auth.master.name : null;
+  const masterName = auth.kind === 'master' ? auth.master.name : await fetchMasterName(masterId);
   const masterLabel = masterName || `#${masterId}`;
   const whenLabel = scheduledLocal.replace('T', ' '); // e.g., "2026-04-26 14:00"
   await notifyTelegram([
