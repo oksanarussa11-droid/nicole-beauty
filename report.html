@@ -397,6 +397,10 @@ function serviceName(id) {
   return s ? s.name : '#' + id;
 }
 
+function isMasterPayoutExpense(row) {
+  return row?.category === 'Выплата мастерам';
+}
+
 // ── unifiedTotals: SAME max-rule as index.html (source of truth).
 // Dedupes day_summaries vs attendances per (date, master) so OCR-aggregated
 // days and per-service rows don't double-count.
@@ -494,13 +498,15 @@ function render() {
   const attF = state.attendances.filter(a => pick(a.date));
   const incF = state.income.filter(i => pick(i.date));
   const expF = state.expenses.filter(e => pick(e.date));
+  const expForProfit = expF.filter(e => !isMasterPayoutExpense(e));
 
   const totalRev    = unified.reduce((s, d) => s + d.revenue, 0);
   const totalMaster = unified.reduce((s, d) => s + d.master_pay, 0);
   const totalSalon  = totalRev - totalMaster;
   const totalInc    = incF.reduce((s, i) => s + Number(i.amount), 0);
   const totalExp    = expF.reduce((s, e) => s + Number(e.amount), 0);
-  const profit      = totalSalon + totalInc - totalExp;
+  const totalExpForProfit = expForProfit.reduce((s, e) => s + Number(e.amount), 0);
+  const profit      = totalSalon + totalInc - totalExpForProfit;
   const distinctDays = new Set(unified.map(u => u.date)).size;
 
   let html = '';
@@ -522,7 +528,7 @@ function render() {
       </div>
       <div class="stat negative">
         <div class="label">Прочие расходы</div>
-        <div class="value neg">${fmt(totalExp)}</div>
+        <div class="value neg">${fmt(totalExpForProfit)}</div>
       </div>
       <div class="stat profit">
         <div class="label">Чистая прибыль</div>
@@ -821,7 +827,7 @@ function render() {
           <tr><td>Выручка услуг</td><td class="num">${fmt(totalRev)}</td></tr>
           <tr><td>Комиссии мастерам</td><td class="num">− ${fmt(totalMaster)}</td></tr>
           <tr><td>Прочие доходы</td><td class="num">+ ${fmt(totalInc)}</td></tr>
-          <tr><td>Прочие расходы</td><td class="num">− ${fmt(totalExp)}</td></tr>
+          <tr><td>Прочие расходы</td><td class="num">− ${fmt(totalExpForProfit)}</td></tr>
           <tr class="total">
             <td>ЧИСТАЯ ПРИБЫЛЬ ${profit < 0 ? '(убыток)' : ''}</td>
             <td class="num">${profit < 0 ? '− ' : '+ '}${fmt(Math.abs(profit))}</td>

@@ -1663,6 +1663,10 @@ function serviceName(id) {
   return s ? s.name : '#' + id;
 }
 
+function isMasterPayoutExpense(row) {
+  return row?.category === 'Выплата мастерам';
+}
+
 // ===================== SUPABASE =====================
 async function initSupabase() {
   if (typeof SUPABASE_URL !== 'string' || typeof SUPABASE_ANON_KEY !== 'string') {
@@ -2251,7 +2255,7 @@ function renderFinance() {
   const otherInc = incF.reduce((s, i) => s + Number(i.amount), 0);
   
   const totalExpAll = expF.reduce((s, e) => s + Number(e.amount), 0);
-  const expForProfit = expF.filter(e => e.category !== 'Выплата мастерам');
+  const expForProfit = expF.filter(e => !isMasterPayoutExpense(e));
   const totalExpForProfit = expForProfit.reduce((s, e) => s + Number(e.amount), 0);
   const unpaidForProfit = expForProfit.filter(e => e.status === 'Не оплачено').reduce((s, e) => s + Number(e.amount), 0);
 
@@ -2370,19 +2374,21 @@ function renderReports() {
   const attF = state.attendances.filter(a => pick(a.date));
   const incF = state.income      .filter(i => pick(i.date));
   const expF = state.expenses    .filter(e => pick(e.date));
+  const expForProfit = expF.filter(e => !isMasterPayoutExpense(e));
 
   const totalRevGross  = unified.reduce((s, d) => s + d.revenue,    0);
   const totalMasterPay = unified.reduce((s, d) => s + d.master_pay, 0);
   const totalRevNet    = totalRevGross - totalMasterPay;
   const totalInc = incF.reduce((s, i) => s + Number(i.amount),  0);
   const totalExp = expF.reduce((s, e) => s + Number(e.amount),  0);
-  const profit   = totalRevNet + totalInc - totalExp;
+  const totalExpForProfit = expForProfit.reduce((s, e) => s + Number(e.amount), 0);
+  const profit   = totalRevNet + totalInc - totalExpForProfit;
 
   document.getElementById('repStats').innerHTML = `
     <div class="stat-card green"><div class="stat-label">Выручка услуг</div><div class="stat-value">${fmt(totalRevGross)}</div></div>
     <div class="stat-card"><div class="stat-label">Комиссии мастерам</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(totalMasterPay)}</div></div>
     <div class="stat-card green clickable" onclick="showSection('finance');setTimeout(()=>document.getElementById('incCard').scrollIntoView({behavior:'smooth'}),60)" title="К списку доходов"><div class="stat-label">Прочие доходы</div><div class="stat-value">${fmt(totalInc)}</div></div>
-    <div class="stat-card clickable" onclick="showSection('finance');setTimeout(()=>document.getElementById('expCard').scrollIntoView({behavior:'smooth'}),60)" title="К списку расходов"><div class="stat-label">Прочие расходы</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(totalExp)}</div></div>
+    <div class="stat-card clickable" onclick="showSection('finance');setTimeout(()=>document.getElementById('expCard').scrollIntoView({behavior:'smooth'}),60)" title="К списку расходов"><div class="stat-label">Прочие расходы</div><div class="stat-value" style="color:var(--danger,#c0392b)">−${fmt(totalExpForProfit)}</div></div>
     <div class="stat-card"><div class="stat-label">Чистая прибыль</div><div class="stat-value">${fmt(profit)}</div></div>
   `;
 
@@ -2403,7 +2409,7 @@ function renderReports() {
     { label: 'Выручка услуг',     delta:  totalRevGross,  kind: 'pos'   },
     { label: 'Комиссии мастерам', delta: -totalMasterPay, kind: 'neg'   },
     { label: 'Прочие доходы',     delta:  totalInc,       kind: 'pos'   },
-    { label: 'Прочие расходы',    delta: -totalExp,       kind: 'neg'   },
+    { label: 'Прочие расходы',    delta: -totalExpForProfit, kind: 'neg' },
     { label: 'Чистая прибыль',    delta:  profit,         kind: 'total' },
   ];
   let run = 0;
@@ -2420,7 +2426,7 @@ function renderReports() {
   const colorOf = k => k === 'pos' ? '#70AD47' : k === 'neg' ? '#E74C3C' : '#8B5E83';
   const zeroPx = yPx(0);
 
-  const hasAnyData = totalRevGross || totalInc || totalExp;
+  const hasAnyData = totalRevGross || totalInc || totalExpForProfit;
   const waterfall = !hasAnyData
     ? '<div class="empty-msg">Нет данных</div>'
     : `<div style="position:relative;height:${H + 28}px;display:flex;align-items:flex-end;gap:14px;padding:0 6px;max-width:50%;margin:0 auto;">
@@ -2464,11 +2470,11 @@ function renderReports() {
         }).join('')}
       </table>`;
 
-  if (totalInc === 0 && totalExp === 0) {
+  if (totalInc === 0 && totalExpForProfit === 0) {
     document.getElementById('chartFinance').innerHTML = '<div class="empty-msg">Нет данных</div>';
   } else {
-    const fMax   = Math.max(1, totalInc, totalExp);
-    const profit = totalInc - totalExp;
+    const fMax   = Math.max(1, totalInc, totalExpForProfit);
+    const profit = totalInc - totalExpForProfit;
     document.getElementById('chartFinance').innerHTML = `
       <div class="chart-bar-container" style="max-width:50%;margin:0 auto;">
         <div class="chart-bar-group">
@@ -2476,7 +2482,7 @@ function renderReports() {
           <div class="chart-bar-label">Доходы</div>
         </div>
         <div class="chart-bar-group">
-          <div class="chart-bars"><div class="chart-bar" style="height:${(totalExp/fMax)*140}px;background:#E74C3C;" title="${fmt(totalExp)}"></div></div>
+          <div class="chart-bars"><div class="chart-bar" style="height:${(totalExpForProfit/fMax)*140}px;background:#E74C3C;" title="${fmt(totalExpForProfit)}"></div></div>
           <div class="chart-bar-label">Расходы</div>
         </div>
         <div class="chart-bar-group">
