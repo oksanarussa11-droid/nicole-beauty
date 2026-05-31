@@ -21,9 +21,13 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Nicole Beauty',
-  description: 'Салон красоты в Самаре',
+  title: 'Nicole Beauty — салон красоты в Самаре',
+  description: 'Салон красоты Nicole Beauty в Самаре. Волосы, ногти, брови и ресницы, солярий. Запись онлайн.',
 }
+
+// Set the theme before first paint so there is no light/dark flash. Defaults
+// to the Champagne (light) palette; honours a saved choice from the toggle.
+const themeBootstrap = `(function(){try{var t=localStorage.getItem('nb-theme');document.documentElement.setAttribute('data-theme',t==='noir'?'noir':'champagne');}catch(e){document.documentElement.setAttribute('data-theme','champagne');}})();`
 
 export default function RootLayout({
   children,
@@ -32,7 +36,10 @@ export default function RootLayout({
 }) {
   const ymId = process.env.NEXT_PUBLIC_YANDEX_METRICA_ID;
   return (
-    <html lang="ru" className={`${cormorant.variable} ${dmSans.variable}`}>
+    <html lang="ru" data-theme="champagne" suppressHydrationWarning className={`${cormorant.variable} ${dmSans.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+      </head>
       <body>
         {children}
         {ymId && (
