@@ -101,9 +101,10 @@ module.exports = async (req, res) => {
     }
 
     // 2. Load master
-    const masters = await sb('GET', `masters?select=id,name,pin_hash&id=eq.${masterId}&limit=1`);
+    const masters = await sb('GET', `masters?select=id,name,pin_hash,active&id=eq.${masterId}&limit=1`);
     const master = Array.isArray(masters) ? masters[0] : null;
     if (!master) return json(res, 404, { error: 'Master not found' });
+    if (master.active === false) return json(res, 403, { error: 'Этот мастер в архиве и не может добавлять записи.' });
     if (!master.pin_hash) return json(res, 403, { error: 'PIN not configured for this master. Ask the admin to set it.' });
 
     // 3. Verify PIN (constant-time)

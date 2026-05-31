@@ -80,11 +80,12 @@ module.exports = async (req, res) => {
     // We escape `,` in the name to protect against PostgREST operator injection;
     // other chars are safe inside a quoted ilike value.
     const encoded = encodeURIComponent(masterName.replace(/,/g, '\\,'));
-    const masters = await sb('GET', `masters?select=id,name,pin_hash&name=ilike.${encoded}&limit=1`);
+    const masters = await sb('GET', `masters?select=id,name,pin_hash,active&name=ilike.${encoded}&limit=1`);
     const master = Array.isArray(masters) ? masters[0] : null;
 
-    // Unknown name → return same 401 as wrong PIN to prevent enumeration.
-    if (!master) {
+    // Unknown name, or archived (active=false) master → same 401 as wrong PIN to
+    // prevent enumeration. Archived masters keep their history but cannot log in.
+    if (!master || master.active === false) {
       await delay(AUTH_FAIL_DELAY_MS);
       return json(res, 401, AUTH_FAIL);
     }
