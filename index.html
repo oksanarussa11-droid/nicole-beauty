@@ -1827,12 +1827,15 @@ function rebuildScheduleFilters() {
     state.masters.map(m => `<option value="${m.id}">${escapeHtmlSchedule(m.name)}</option>`).join('');
   if (mCurrent) mSel.value = mCurrent;
 
-  // Master select on the "Новая запись" form too.
+  // Master select on the "Новая запись" form — only active masters can be
+  // assigned new appointments (archived masters stay in reports/history but
+  // disappear from creation selectors).
   const aSel = document.getElementById('apptMaster');
   if (aSel) {
     const cur = aSel.value;
     aSel.innerHTML = '<option value="">—</option>' +
-      state.masters.map(m => `<option value="${m.id}">${escapeHtmlSchedule(m.name)}</option>`).join('');
+      state.masters.filter(m => m.active !== false)
+        .map(m => `<option value="${m.id}">${escapeHtmlSchedule(m.name)}</option>`).join('');
     if (cur) aSel.value = cur;
     onApptMasterChange();
   }
@@ -2329,9 +2332,9 @@ function renderInventory() {
 function renderMasters() {
   document.getElementById('mastersTable').innerHTML = state.masters.length === 0
     ? '<tr><td colspan="5" class="empty-msg">Нет мастеров</td></tr>'
-    : state.masters.map(m => `<tr>
+    : state.masters.map(m => `<tr${m.active===false ? ' style="opacity:.6;"' : ''}>
         <td style="vertical-align:top; width:20%;">
-          <div style="font-weight:500;">${escapeText(m.name)}</div>
+          <div style="font-weight:500;">${escapeText(m.name)}${m.active===false ? ' <span style="font-size:10px;font-weight:600;color:var(--muted);border:1px solid var(--hairline-strong);border-radius:4px;padding:1px 5px;vertical-align:middle;">в архиве</span>' : ''}</div>
           <div style="font-size:11px;color:var(--muted)">${escapeText(m.specialty||'')}</div>
         </td>
         <td style="vertical-align:top; width:35%;">
@@ -2350,7 +2353,8 @@ function renderMasters() {
         </td>
         <td style="vertical-align:top; width:15%;">
           <button class="btn btn-primary btn-sm" onclick="saveMaster(${m.id})" style="width:100%; margin-bottom:6px;">Сохранить</button>
-          <button class="btn btn-sm" onclick="setMasterPin(${m.id}, '${escapeText(m.name).replace(/'/g,"&#39;")}')" style="width:100%; background:transparent; border:1px solid var(--hairline-strong);">PIN</button>
+          <button class="btn btn-sm" onclick="setMasterPin(${m.id}, '${escapeText(m.name).replace(/'/g,"&#39;")}')" style="width:100%; margin-bottom:6px; background:transparent; border:1px solid var(--hairline-strong);">PIN</button>
+          <button class="btn btn-sm" onclick="archiveMaster(${m.id}, ${m.active===false})" style="width:100%; background:transparent; border:1px solid var(--hairline-strong);">${m.active===false ? 'Вернуть из архива' : 'В архив'}</button>
         </td>
         <td style="vertical-align:top; width:5%; text-align:right;">
           <button class="btn btn-danger btn-sm" onclick="delMaster(${m.id})">X</button>
@@ -2842,6 +2846,14 @@ async function saveMaster(id) {
   await loadAll();
 }
 async function delMaster(id)  { if (!confirmDel('Удалить мастера? Его записи останутся, но ссылки могут сломаться.')) return; const { error } = await sb.from('masters').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
+// Archive (active=false) hides a master from creation selectors and blocks PIN
+// login, while keeping all their past attendances in reports. Reversible.
+async function archiveMaster(id, makeActive) {
+  const { error } = await sb.from('masters').update({ active: !!makeActive }).eq('id', id);
+  if (error) return toast('Ошибка: ' + error.message, true);
+  toast(makeActive ? 'Мастер возвращён из архива' : 'Мастер перемещён в архив');
+  await loadAll();
+}
 async function delService(id) { if (!confirmDel('Удалить услугу?')) return; const { error } = await sb.from('services').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 
 // ── Admin PIN management ────────────────────────────────────
@@ -3106,8 +3118,11 @@ function _previewPay(masterId, serviceId, price, usesSalon) {
 }
 
 function _populateMasterSelect(sel, selectedId) {
+  // Show active masters only, but always keep the currently-selected one even if
+  // archived — so editing an existing record of an archived master still works.
   sel.innerHTML = (state.masters || [])
-    .map(m => `<option value="${m.id}" ${m.id===selectedId?'selected':''}>${escapeText(m.name)}</option>`).join('');
+    .filter(m => m.active !== false || m.id === selectedId)
+    .map(m => `<option value="${m.id}" ${m.id===selectedId?'selected':''}>${escapeText(m.name)}${m.active===false?' (архив)':''}</option>`).join('');
 }
 function _populateServiceSelect(sel, selectedId) {
   sel.innerHTML = (state.services || [])
