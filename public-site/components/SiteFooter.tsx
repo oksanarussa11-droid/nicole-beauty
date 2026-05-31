@@ -19,7 +19,7 @@ export default function SiteFooter() {
           <div className="footer-col">
             <h5>Контакты</h5>
             <p><IcPin /> г. Самара</p>
-            <p><IcClock /> Ежедневно · 9:00 – 21:00</p>
+            <p><IcClock /> Ежедневно · 9:00 – 20:00</p>
           </div>
           <div className="footer-col">
             <h5>Мы в сетях</h5>
