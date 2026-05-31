@@ -5,11 +5,15 @@
 -- ============ TABLES ============
 
 create table if not exists masters (
-  id          bigserial primary key,
-  name        text not null unique,
-  specialty   text,
-  active      boolean not null default true,
-  created_at  timestamptz not null default now()
+  id            bigserial primary key,
+  name          text not null unique,
+  specialty     text,
+  active        boolean not null default true,
+  photo_url     text,
+  bio           text,
+  display_order int not null default 100,
+  is_public     boolean not null default true,
+  created_at    timestamptz not null default now()
 );
 
 create table if not exists services (
@@ -111,9 +115,32 @@ create table if not exists pin_attempts (
 );
 create index if not exists pin_attempts_master_ts_idx on pin_attempts(master_id, attempted_at desc);
 
+create table if not exists booking_requests (
+    id bigserial primary key,
+    created_at timestamptz not null default now(),
+    service_id bigint references services(id) on delete set null,
+    service_name text,
+    master_id bigint references masters(id) on delete set null,
+    master_name text,
+    help_choosing boolean not null default false,
+    preferred_day text,
+    preferred_period text,
+    client_name text not null,
+    client_contact text not null,
+    contact_method text,
+    note text,
+    status text not null default 'new',
+    source text not null default 'public_site',
+    ip text,
+    user_agent text
+);
+create index if not exists idx_booking_requests_created_at on booking_requests(created_at);
+create index if not exists idx_booking_requests_ip_created on booking_requests(ip, created_at);
+
 -- Public view of masters — excludes pin_hash so it never reaches the browser.
+drop view if exists masters_public;
 create or replace view masters_public as
-  select id, name, specialty, active, created_at from masters;
+  select id, name, specialty, active, photo_url, bio, display_order, is_public, created_at from masters;
 grant select on masters_public to anon, authenticated;
 
 -- ============ ROW LEVEL SECURITY ============
@@ -129,6 +156,7 @@ alter table expenses        enable row level security;
 alter table inventory       enable row level security;
 alter table attendances     enable row level security;
 alter table pin_attempts    enable row level security;
+alter table booking_requests enable row level security;
 
 -- attendances: anon can SELECT (dashboards), but WRITES only via service-role (/api/attendance).
 drop policy if exists "anon_select_attendances"   on attendances;

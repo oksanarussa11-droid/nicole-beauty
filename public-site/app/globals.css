@@ -1,0 +1,28 @@
+:root {
+  --bg: #FAFAF7;
+  --bg-elevated: #FFFFFF;
+  --ink: #1F1C18;
+  --ink-soft: #3D3934;
+  --muted: #8A857D;
+  --hairline: #E8E6E1;
+  --accent: #E2B27D;
+  --accent-deep: #C7955C;
+  --positive: #5D8068;
+  --positive-bg: #EAF0EC;
+  --danger: #AB5252;
+  --serif: var(--font-serif), 'Cormorant Garamond', serif;
+  --sans: var(--font-sans), 'DM Sans', sans-serif;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--serif);
+  color: var(--ink-soft);
+}

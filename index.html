@@ -1473,7 +1473,7 @@
     </div>
     <button class="btn btn-primary" onclick="addMaster()">Добавить мастера</button>
     <table style="margin-top:14px;">
-      <thead><tr><th>Имя</th><th>Специализация</th><th>PIN</th><th></th></tr></thead>
+      <thead><tr><th>Имя / Спец.</th><th>Сайт (Фото, Био)</th><th>Отображение (Сайт)</th><th>Действия</th><th></th></tr></thead>
       <tbody id="mastersTable"></tbody>
     </table>
   </div>
@@ -2328,11 +2328,33 @@ function renderInventory() {
 
 function renderMasters() {
   document.getElementById('mastersTable').innerHTML = state.masters.length === 0
-    ? '<tr><td colspan="4" class="empty-msg">Нет мастеров</td></tr>'
+    ? '<tr><td colspan="5" class="empty-msg">Нет мастеров</td></tr>'
     : state.masters.map(m => `<tr>
-        <td>${escapeText(m.name)}</td><td>${escapeText(m.specialty||'')}</td>
-        <td><button class="btn btn-sm" onclick="setMasterPin(${m.id}, '${escapeText(m.name).replace(/'/g,"&#39;")}')">PIN</button></td>
-        <td><button class="btn btn-danger btn-sm" onclick="delMaster(${m.id})">X</button></td>
+        <td style="vertical-align:top; width:20%;">
+          <div style="font-weight:500;">${escapeText(m.name)}</div>
+          <div style="font-size:11px;color:var(--muted)">${escapeText(m.specialty||'')}</div>
+        </td>
+        <td style="vertical-align:top; width:35%;">
+          <input type="text" id="masterPhoto_${m.id}" value="${escapeText(m.photo_url||'')}" placeholder="URL фото" style="width:100%; margin-bottom:6px; padding:6px; font-size:12px; border:1px solid var(--hairline-strong); background:transparent; border-radius:var(--radius);">
+          <textarea id="masterBio_${m.id}" placeholder="Описание (bio)" style="width:100%; font-family:var(--sans); font-size:12px; padding:6px; border:1px solid var(--hairline-strong); background:transparent; resize:vertical; min-height:45px; border-radius:var(--radius);">${escapeText(m.bio||'')}</textarea>
+        </td>
+        <td style="vertical-align:top; width:25%;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink); margin-bottom:8px;">
+            <input type="checkbox" id="masterPublic_${m.id}" ${m.is_public !== false ? 'checked' : ''}>
+            Публичный профиль
+          </label>
+          <div style="display:flex; align-items:center; gap:6px;">
+             <span style="font-size:11px; color:var(--muted);">Порядок:</span>
+             <input type="number" id="masterOrder_${m.id}" value="${m.display_order ?? 100}" style="width:60px; padding:4px 6px; border:1px solid var(--hairline-strong); background:transparent; font-size:12px; border-radius:var(--radius);">
+          </div>
+        </td>
+        <td style="vertical-align:top; width:15%;">
+          <button class="btn btn-primary btn-sm" onclick="saveMaster(${m.id})" style="width:100%; margin-bottom:6px;">Сохранить</button>
+          <button class="btn btn-sm" onclick="setMasterPin(${m.id}, '${escapeText(m.name).replace(/'/g,"&#39;")}')" style="width:100%; background:transparent; border:1px solid var(--hairline-strong);">PIN</button>
+        </td>
+        <td style="vertical-align:top; width:5%; text-align:right;">
+          <button class="btn btn-danger btn-sm" onclick="delMaster(${m.id})">X</button>
+        </td>
       </tr>`).join('');
 
   document.getElementById('servicesTable').innerHTML = state.services.length === 0
@@ -2805,6 +2827,20 @@ function openExpenseEditModal(id) {
   };
 }
 async function delInv(id)     { if (!confirmDel('Удалить этот продукт?')) return; const { error } = await sb.from('inventory').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
+async function saveMaster(id) {
+  const photo_url = val('masterPhoto_' + id);
+  const bio = val('masterBio_' + id);
+  const display_order = parseInt(val('masterOrder_' + id), 10);
+  const is_public = $('masterPublic_' + id).checked;
+  
+  const { error } = await sb.from('masters').update({
+    photo_url, bio, display_order, is_public
+  }).eq('id', id);
+  
+  if (error) { toast(error.message, true); return; }
+  toast('Сохранено');
+  await loadAll();
+}
 async function delMaster(id)  { if (!confirmDel('Удалить мастера? Его записи останутся, но ссылки могут сломаться.')) return; const { error } = await sb.from('masters').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 async function delService(id) { if (!confirmDel('Удалить услугу?')) return; const { error } = await sb.from('services').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 
