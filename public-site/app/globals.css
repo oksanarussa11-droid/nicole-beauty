@@ -181,12 +181,12 @@ h1,h2,h3,h4,h5,h6{ font-family:var(--serif); }
 
 .hero-inner{ position:relative; text-align:center; display:flex; flex-direction:column; align-items:center; }
 .hero h1{
-  font-family:var(--serif); font-weight:500;
+  font-family:var(--serif); font-weight:400;
   font-size:clamp(54px, 7.4vw, 98px); line-height:1.0; letter-spacing:-.01em;
   color:var(--ink); margin:22px 0 0;
 }
-.hero h1 .l1{ display:block; }
-.hero h1 em{ display:block; font-style:italic; color:var(--accent-deep); margin-top:2px; }
+.hero h1 .l1{ display:inline; }
+.hero h1 em{ display:inline; font-style:normal; color:var(--accent-deep); }
 .hero .lede{
   font-family:var(--serif); font-style:italic;
   font-size:clamp(20px, 2.4vw, 27px); line-height:1.35; color:var(--ink-soft);
