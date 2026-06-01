@@ -26,7 +26,7 @@ export default function Hero() {
         <h1 className="reveal in" data-d="2"><span className="l1">Nicole</span><em>Beauty</em></h1>
         <p className="lede reveal in" data-d="3">Ваша красота — в надёжных руках.</p>
         <div className="meta reveal in" data-d="3">
-          <span>Волосы</span><span className="dot" /><span>Ногти</span><span className="dot" /><span>Брови &amp; ресницы</span><span className="dot" /><span className="dot" /><span>Косметология</span> className="dot" /><span>Солярий</span>
+          <span>Волосы</span><span className="dot" /><span>Ногти</span><span className="dot" /><span>Брови &amp; ресницы</span><span className="dot" /><span>Косметология</span><span className="dot" /><span>Солярий</span>
         </div>
         <div className="cta-row reveal in" data-d="4">
           <a href="#booking" className="btn btn-primary btn-lg">Записаться онлайн</a>
