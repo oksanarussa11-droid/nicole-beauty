@@ -16,7 +16,7 @@ export const IcTelegram = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round"><path d="M22 3.2 2.6 10.7c-.74.28-.7 1.36.06 1.58l5.1 1.48 1.97 5.9c.22.64 1.04.78 1.46.26l2.66-3.16 4.96 3.66c.5.37 1.22.1 1.34-.52L23.5 4.1c.13-.66-.5-1.18-1.1-.9Z" /><path d="m7.9 13.9 10.2-7.1-7.4 8.2" /></svg>
 );
 export const IcWhats = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={1.5}><path d="M3 21l1.7-4.3A8 8 0 1121 12a8 8 0 01-12.4 6.7L3 21z" /><path d="M8.5 9c.3 3 2.5 5.2 5.5 5.5.7.1 1.3-.6 1.1-1.3l-.3-1-1.7-.4-.9 1c-1-.5-1.8-1.3-2.3-2.3l1-.9-.4-1.7-1-.3C8.9 7.6 8.4 8.3 8.5 9z" /></svg>
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /><path d="M9 9c.3 2.7 2.3 4.7 5 5 .6.1 1.1-.5 1-1.1l-.2-.9-1.6-.4-.8.9c-.9-.5-1.6-1.2-2.1-2.1l.9-.8-.4-1.6-.9-.2C9.4 7.9 8.9 8.4 9 9z" /></svg>
 );
 export const IcPhone = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={1.5}><path d="M5 3h3l2 5-2.5 1.5a11 11 0 005 5L19 12l5 2v3a2 2 0 01-2 2A16 16 0 013 5a2 2 0 012-2z" transform="translate(-1 0)" /></svg>
