@@ -3,7 +3,7 @@ import { IcPin, IcClock, IcInstagram, IcTelegram, IcGlobe } from './icons';
 
 const SOCIAL = {
   instagram: 'nicole_beauty_salon',
-  whatsapp? '+7 987 244 5580',
+  whatsapp? '+79872445580',
   telegram: 'nicole_salon',
   site: 'nicolesalon.ru',
 };
