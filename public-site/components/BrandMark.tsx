@@ -13,7 +13,7 @@ export default function BrandMark() {
         <Image className="logo-pink" src={LOGO_PINK} alt="Nicole Beauty" width={82} height={82} />
       </span>
       <span className="wm">
-        <span className="nm">Nicole Beauty</span>
+        <span className="nm">NICOLE SALON</span>
         <span className="sub">салон красоты · Самара</span>
       </span>
     </a>
