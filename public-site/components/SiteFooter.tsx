@@ -3,8 +3,9 @@ import { IcPin, IcClock, IcInstagram, IcTelegram, IcGlobe } from './icons';
 
 const SOCIAL = {
   instagram: 'nicole_beauty_salon',
+  whatsapp? '+7 987 244 5580',
   telegram: 'nicole_salon',
-  site: 'nicole-salon-pro.vercel.app',
+  site: 'nicolesalon.ru',
 };
 
 export default function SiteFooter() {
@@ -20,16 +21,18 @@ export default function SiteFooter() {
             <h5>Контакты</h5>
             <p><IcPin /> г. Самара</p>
             <p><IcClock /> Ежедневно · 9:00 – 20:00</p>
+            <p><IcPhone /> +7 987 244 5580</p>
           </div>
           <div className="footer-col">
             <h5>Мы в сетях</h5>
             <a href={`https://instagram.com/${SOCIAL.instagram}`} target="_blank" rel="noopener noreferrer"><IcInstagram /> @{SOCIAL.instagram}</a>
+            <a href={`https://instagram.com/${SOCIAL.whatsapp}`} target="_blank" rel="noopener noreferrer"><IcWhatsapp /> @{SOCIAL.whatsapp}</a>
             <a href={`https://t.me/${SOCIAL.telegram}`} target="_blank" rel="noopener noreferrer"><IcTelegram /> @{SOCIAL.telegram}</a>
             <a href={`https://${SOCIAL.site}`} target="_blank" rel="noopener noreferrer"><IcGlobe /> {SOCIAL.site}</a>
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© 2026 Nicole Beauty. Все права защищены.</span>
+          <span>© 2026 Nicole Salon. Все права защищены.</span>
           <span>Сделано с любовью к красоте</span>
         </div>
       </div>
