@@ -1,5 +1,5 @@
 import BrandMark from './BrandMark';
-import { IcPin, IcClock, IcInstagram, IcTelegram, IcGlobe } from './icons';
+import { IcPin, IcClock, IcPhone, IcWhats, IcInstagram, IcTelegram, IcGlobe } from './icons';
 
 const SOCIAL = {
   instagram: 'nicole_beauty_salon',
@@ -26,7 +26,7 @@ export default function SiteFooter() {
           <div className="footer-col">
             <h5>Мы в сетях</h5>
             <a href={`https://instagram.com/${SOCIAL.instagram}`} target="_blank" rel="noopener noreferrer"><IcInstagram /> @{SOCIAL.instagram}</a>
-            <a href={`https://instagram.com/${SOCIAL.whatsapp}`} target="_blank" rel="noopener noreferrer"><IcWhatsapp /> @{SOCIAL.whatsapp}</a>
+            <a href={`https://wa.me/${SOCIAL.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"><IcWhats /> {SOCIAL.whatsapp}</a>
             <a href={`https://t.me/${SOCIAL.telegram}`} target="_blank" rel="noopener noreferrer"><IcTelegram /> @{SOCIAL.telegram}</a>
             <a href={`https://${SOCIAL.site}`} target="_blank" rel="noopener noreferrer"><IcGlobe /> {SOCIAL.site}</a>
           </div>
