@@ -1485,7 +1485,7 @@
     </div>
     <button class="btn btn-primary" onclick="addService()">Добавить услугу</button>
     <table style="margin-top:14px;">
-      <thead><tr><th>Услуга</th><th></th></tr></thead>
+      <thead><tr><th>Услуга</th><th>Видимость</th><th>Порядок</th><th></th></tr></thead>
       <tbody id="servicesTable"></tbody>
     </table>
   </div>
@@ -2362,10 +2362,25 @@ function renderMasters() {
       </tr>`).join('');
 
   document.getElementById('servicesTable').innerHTML = state.services.length === 0
-    ? '<tr><td colspan="2" class="empty-msg">Нет услуг</td></tr>'
+    ? '<tr><td colspan="4" class="empty-msg">Нет услуг</td></tr>'
     : state.services.map(s => `<tr>
-        <td>${s.name}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="delService(${s.id})">X</button></td>
+        <td style="vertical-align:middle;">${escapeText(s.name)}</td>
+        <td style="vertical-align:middle;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink);">
+            <input type="checkbox" id="servicePublic_${s.id}" ${s.is_public !== false ? 'checked' : ''}>
+            Показывать на сайте
+          </label>
+        </td>
+        <td style="vertical-align:middle;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:11px; color:var(--muted);">Порядок:</span>
+            <input type="number" id="serviceOrder_${s.id}" value="${s.display_order ?? 100}" style="width:60px;">
+          </div>
+        </td>
+        <td style="vertical-align:middle; text-align:right; white-space:nowrap;">
+          <button class="btn btn-primary btn-sm" onclick="saveService(${s.id})">Сохранить</button>
+          <button class="btn btn-danger btn-sm" onclick="delService(${s.id})">X</button>
+        </td>
       </tr>`).join('');
 
   const rows = [];
@@ -2841,6 +2856,18 @@ async function saveMaster(id) {
     photo_url, bio, display_order, is_public
   }).eq('id', id);
   
+  if (error) { toast(error.message, true); return; }
+  toast('Сохранено');
+  await loadAll();
+}
+async function saveService(id) {
+  const display_order = parseInt(val('serviceOrder_' + id), 10);
+  const is_public = document.getElementById('servicePublic_' + id).checked;
+
+  const { error } = await sb.from('services').update({
+    display_order, is_public
+  }).eq('id', id);
+
   if (error) { toast(error.message, true); return; }
   toast('Сохранено');
   await loadAll();
