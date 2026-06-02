@@ -17,9 +17,11 @@ create table if not exists masters (
 );
 
 create table if not exists services (
-  id          bigserial primary key,
-  name        text not null unique,
-  created_at  timestamptz not null default now()
+  id            bigserial primary key,
+  name          text not null unique,
+  display_order int not null default 100,
+  is_public     boolean not null default true,
+  created_at    timestamptz not null default now()
 );
 
 -- Price + commission per master+service combination.
