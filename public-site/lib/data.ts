@@ -15,6 +15,8 @@ export type Master = {
 export type Service = {
   id: number;
   name: string;
+  display_order: number;
+  is_public: boolean;
   created_at?: string;
 };
 
@@ -37,7 +39,7 @@ export async function getPublicMasters(): Promise<Master[]> {
 }
 
 export async function getServices(): Promise<Service[]> {
-  return sbSelect<Service[]>('services?select=*');
+  return sbSelect<Service[]>('services?is_public=eq.true&order=display_order.asc,name.asc');
 }
 
 export async function getMasterServices(): Promise<MasterService[]> {
