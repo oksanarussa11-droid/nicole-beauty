@@ -1692,8 +1692,8 @@ async function loadAll() {
   if (!sb) return;
   try {
     const [ms, sv, mss, ds, att, inc, exp, inv, app] = await Promise.all([
-      sb.from('masters_public').select('*').order('name'),
-      sb.from('services').select('*').order('name'),
+      sb.from('masters_public').select('*').order('display_order').order('name'),
+      sb.from('services').select('*').order('display_order').order('name'),
       sb.from('master_services').select('*'),
       sb.from('day_summaries').select('*').order('date', { ascending: false }),
       (function(){
