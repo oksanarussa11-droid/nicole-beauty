@@ -2849,7 +2849,8 @@ async function delInv(id)     { if (!confirmDel('Удалить этот про�
 async function saveMaster(id) {
   const photo_url = val('masterPhoto_' + id);
   const bio = val('masterBio_' + id);
-  const display_order = parseInt(val('masterOrder_' + id), 10);
+  const orderRaw = parseInt(val('masterOrder_' + id), 10);
+  const display_order = Number.isNaN(orderRaw) ? 100 : orderRaw;
   const is_public = $('masterPublic_' + id).checked;
   
   const { error } = await sb.from('masters').update({
@@ -2861,7 +2862,8 @@ async function saveMaster(id) {
   await loadAll();
 }
 async function saveService(id) {
-  const display_order = parseInt(val('serviceOrder_' + id), 10);
+  const orderRaw = parseInt(val('serviceOrder_' + id), 10);
+  const display_order = Number.isNaN(orderRaw) ? 100 : orderRaw;
   const is_public = document.getElementById('servicePublic_' + id).checked;
 
   const { error } = await sb.from('services').update({
