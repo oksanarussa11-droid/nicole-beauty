@@ -2359,7 +2359,15 @@ function renderMasters() {
           <div style="font-size:11px;color:var(--muted)">${escapeText(m.specialty||'')}</div>
         </td>
         <td style="vertical-align:top; width:35%;">
-          <input type="text" id="masterPhoto_${m.id}" value="${escapeText(m.photo_url||'')}" placeholder="URL фото" style="width:100%; margin-bottom:6px; padding:6px; font-size:12px; border:1px solid var(--hairline-strong); background:transparent; border-radius:var(--radius);">
+          <img id="masterPhotoPreview_${m.id}" src="${escapeText(m.photo_url||'')}" alt="" style="width:100%; max-width:150px; height:90px; object-fit:cover; border-radius:var(--radius); margin-bottom:6px; ${m.photo_url ? '' : 'display:none;'}">
+          <div style="display:flex; gap:6px; margin-bottom:6px;">
+            <label class="btn btn-sm" style="flex:1; text-align:center; margin:0; background:transparent; border:1px solid var(--hairline-strong); cursor:pointer;">
+              Фото с компьютера
+              <input type="file" accept="image/*" style="display:none;" onchange="uploadMasterPhoto(${m.id}, this)">
+            </label>
+            <button type="button" id="masterPhotoDel_${m.id}" class="btn btn-danger btn-sm" onclick="clearMasterPhoto(${m.id})" style="${m.photo_url ? '' : 'display:none;'}">Удалить фото</button>
+          </div>
+          <input type="text" id="masterPhoto_${m.id}" value="${escapeText(m.photo_url||'')}" placeholder="или вставьте URL фото" style="width:100%; margin-bottom:6px; padding:6px; font-size:12px; border:1px solid var(--hairline-strong); background:transparent; border-radius:var(--radius);">
           <textarea id="masterBio_${m.id}" placeholder="Описание (bio)" style="width:100%; font-family:var(--sans); font-size:12px; padding:6px; border:1px solid var(--hairline-strong); background:transparent; resize:vertical; min-height:45px; border-radius:var(--radius);">${escapeText(m.bio||'')}</textarea>
         </td>
         <td style="vertical-align:top; width:25%;">
@@ -2910,10 +2918,10 @@ async function saveMaster(id) {
   const bio = val('masterBio_' + id);
   const orderRaw = parseInt(val('masterOrder_' + id), 10);
   const display_order = Number.isNaN(orderRaw) ? 100 : orderRaw;
-  const is_public = $('masterPublic_' + id).checked;
-  
+  const is_public = document.getElementById('masterPublic_' + id).checked;
+
   const { error } = await sb.from('masters').update({
-    photo_url, bio, display_order, is_public
+    photo_url: photo_url || null, bio, display_order, is_public
   }).eq('id', id);
   
   if (error) { toast(error.message, true); return; }
@@ -2944,18 +2952,38 @@ async function archiveMaster(id, makeActive) {
 }
 async function delService(id) { if (!confirmDel('Удалить услугу?')) return; const { error } = await sb.from('services').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
 
-// ── Salon gallery ───────────────────────────────────────────
-// Photos are uploaded to the public 'salon-gallery' Storage bucket; the public
-// URL is stored in salon_gallery.image_url and rendered on the public site.
+// ── Image upload helpers (Supabase Storage) ─────────────────
+// Photos go to public Storage buckets; their public URL is stored in the DB
+// and rendered on the public site (next/image is allowed for these hosts).
 const GALLERY_BUCKET = 'salon-gallery';
+const MASTER_BUCKET  = 'master-photos';
 
-async function uploadGalleryImage(file) {
+async function uploadImage(file, bucket, prefix = '') {
   if (file.size > 8 * 1024 * 1024) throw new Error('Файл больше 8 МБ — выберите фото поменьше');
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const { error } = await sb.storage.from(GALLERY_BUCKET).upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+  const path = `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await sb.storage.from(bucket).upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
   if (error) throw error;
-  return sb.storage.from(GALLERY_BUCKET).getPublicUrl(path).data.publicUrl;
+  return sb.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+}
+
+// Derive the in-bucket object path from a public URL, so we can delete the file.
+function storagePathFromUrl(url, bucket) {
+  if (!url) return null;
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const i = url.indexOf(marker);
+  return i === -1 ? null : decodeURIComponent(url.slice(i + marker.length));
+}
+
+// Best-effort removal of a stored file — never blocks the DB operation.
+async function removeStoredImage(url, bucket) {
+  const path = storagePathFromUrl(url, bucket);
+  if (!path) return;
+  try { await sb.storage.from(bucket).remove([path]); } catch (e) { /* ignore */ }
+}
+
+async function uploadGalleryImage(file) {
+  return uploadImage(file, GALLERY_BUCKET);
 }
 
 async function addGalleryPhoto(input) {
@@ -2981,9 +3009,11 @@ async function replaceGalleryImage(id, input) {
   if (!file) return;
   try {
     toast('Загрузка фото…');
-    const image_url = await uploadGalleryImage(file);
+    const oldUrl = (state.gallery.find(g => g.id === id) || {}).image_url;
+    const image_url = await uploadImage(file, GALLERY_BUCKET);
     const { error } = await sb.from('salon_gallery').update({ image_url }).eq('id', id);
     if (error) throw error;
+    await removeStoredImage(oldUrl, GALLERY_BUCKET);
     toast('Фото обновлено');
     await loadAll();
   } catch (e) {
@@ -3008,9 +3038,42 @@ async function saveGallery(id) {
 
 async function delGallery(id) {
   if (!confirmDel('Удалить это фото из галереи?')) return;
+  const item = (state.gallery || []).find(g => g.id === id);
   const { error } = await sb.from('salon_gallery').delete().eq('id', id);
   if (error) return toast('Ошибка: ' + error.message, true);
+  await removeStoredImage(item && item.image_url, GALLERY_BUCKET);
   await loadAll();
+}
+
+// ── Master photos ───────────────────────────────────────────
+// Upload fills the photo URL field + preview; the value is persisted when the
+// admin clicks «Сохранить» (saveMaster), alongside bio/order/visibility.
+async function uploadMasterPhoto(id, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    toast('Загрузка фото…');
+    const url = await uploadImage(file, MASTER_BUCKET, 'masters/');
+    setVal('masterPhoto_' + id, url);
+    const prev = document.getElementById('masterPhotoPreview_' + id);
+    if (prev) { prev.src = url; prev.style.display = 'block'; }
+    const delBtn = document.getElementById('masterPhotoDel_' + id);
+    if (delBtn) delBtn.style.display = '';
+    toast('Фото загружено — нажмите «Сохранить»');
+  } catch (e) {
+    toast('Ошибка: ' + (e.message || e), true);
+  } finally {
+    input.value = '';
+  }
+}
+
+function clearMasterPhoto(id) {
+  setVal('masterPhoto_' + id, '');
+  const prev = document.getElementById('masterPhotoPreview_' + id);
+  if (prev) { prev.removeAttribute('src'); prev.style.display = 'none'; }
+  const delBtn = document.getElementById('masterPhotoDel_' + id);
+  if (delBtn) delBtn.style.display = 'none';
+  toast('Фото убрано — нажмите «Сохранить»');
 }
 
 // ── Admin PIN management ────────────────────────────────────
