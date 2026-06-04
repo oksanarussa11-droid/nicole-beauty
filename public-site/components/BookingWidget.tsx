@@ -38,6 +38,14 @@ const METHODS: { k: ContactMethod; label: string; Ic: typeof IcWhats }[] = [
   { k: 'phone', label: 'Звонок', Ic: IcPhone },
 ];
 
+// Реальные контакты салона — совпадают с футером (SiteFooter).
+// Используются как запасной вариант, если env-переменные не заданы.
+const SALON = {
+  phone: '+7 987 244 5580',
+  whatsapp: '+7 987 244 5580',
+  telegram: 'nicole_salon',
+};
+
 export default function BookingWidget({
   services,
   masters,
@@ -82,6 +90,21 @@ export default function BookingWidget({
     setServiceId(''); setMasterId(''); setHelpChoosing(false); setContactMethod('whatsapp');
     setName(''); setContact(''); setDay(''); setPeriod(''); setNote('');
     setError(''); setTouched({}); setSuccess(false);
+  };
+
+  // Открыть нужное приложение сразу по клику (реальные контакты, env как приоритет).
+  const openChannel = (method: ContactMethod) => {
+    const waNumber = (whatsappNumber || SALON.whatsapp).replace(/\D/g, '');
+    const tgContact = (telegramContact || SALON.telegram).replace('@', '');
+    const phoneNumber = SALON.phone.replace(/\D/g, '');
+
+    if (method === 'whatsapp') {
+      window.open(`https://wa.me/${waNumber}`, '_blank', 'noopener,noreferrer');
+    } else if (method === 'telegram') {
+      window.open(`https://t.me/${tgContact}`, '_blank', 'noopener,noreferrer');
+    } else if (method === 'phone') {
+      window.location.href = `tel:+${phoneNumber}`;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,13 +154,6 @@ export default function BookingWidget({
 
       setSuccess(true);
       reachGoal('request_sent');
-
-      // Open deep link to the chosen channel.
-      if (contactMethod === 'whatsapp' && whatsappNumber) {
-        window.open(`https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}`, '_blank');
-      } else if (contactMethod === 'telegram' && telegramContact) {
-        window.open(`https://t.me/${telegramContact.replace('@', '')}`, '_blank');
-      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
@@ -196,7 +212,7 @@ export default function BookingWidget({
                 <span className="flabel">Удобный способ связи</span>
                 <div className="seg">
                   {METHODS.map(({ k, label, Ic }) => (
-                    <button type="button" key={k} className={contactMethod === k ? 'on' : ''} onClick={() => setContactMethod(k)}>
+                    <button type="button" key={k} className={contactMethod === k ? 'on' : ''} onClick={() => { setContactMethod(k); openChannel(k); }}>
                       <Ic />{label}
                     </button>
                   ))}

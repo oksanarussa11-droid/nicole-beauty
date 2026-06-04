@@ -14,7 +14,7 @@ export default function MastersCarousel({ masters }: { masters: Master[] }) {
             <span className="eyebrow"><Spark /> наша команда</span>
             <h2>Мастера, которым <em>доверяют</em></h2>
           </div>
-          <p className="aside reveal" data-d="1">Каждый специалист Nicole Beauty — это опыт, вкус и внимание к деталям. Выберите своего мастера или доверьтесь нашему совету.</p>
+          <p className="aside reveal" data-d="1">Каждый специалист Nicole Salon — это опыт, вкус и внимание к деталям. Выберите своего мастера или доверьтесь нашему совету.</p>
         </div>
       </div>
       <div className="reveal">

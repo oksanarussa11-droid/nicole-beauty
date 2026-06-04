@@ -15,12 +15,12 @@ export default function SiteFooter() {
         <div className="footer-top">
           <div className="footer-brand">
             <BrandMark />
-            <p>Студия красоты с вниманием к каждой детали. Следите за новостями, акциями и работами наших мастеров.</p>
+            <p>Салон красоты с вниманием к каждой детали. Следите за новостями, акциями и работами наших мастеров.</p>
           </div>
           <div className="footer-col">
             <h5>Контакты</h5>
-            <p><IcPin /> г. Самара</p>
-            <p><IcClock /> Ежедневно · 9:00 – 20:00</p>
+            <p><IcPin /> ул. Чернореченская, 49, Самара</p>
+            <p><IcClock /> Ежедневно с 9:00 до 20:00</p>
             <p><IcPhone /> +7 987 244 5580</p>
           </div>
           <div className="footer-col">

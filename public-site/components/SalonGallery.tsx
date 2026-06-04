@@ -20,7 +20,7 @@ export default function SalonGallery() {
             <span className="eyebrow"><Spark /> атмосфера</span>
             <h2>Загляните <em>к нам</em></h2>
           </div>
-          <p className="aside reveal" data-d="1">Светлый, уютный интерьер, где приятно проводить время. Добро пожаловать в пространство красоты Nicole Beauty.</p>
+          <p className="aside reveal" data-d="1">Светлый, уютный интерьер, где приятно проводить время. Добро пожаловать в пространство красоты Nicole Salon.</p>
         </div>
       </div>
       <div className="reveal">
