@@ -1214,6 +1214,7 @@
   <div class="tab" data-section="finance">Финансы</div>
   <div class="tab" data-section="inventory">Продукция</div>
   <div class="tab" data-section="masters">Мастера</div>
+  <div class="tab" data-section="gallery">Галерея</div>
   <div class="tab" data-section="reports">Отчёты</div>
   <div class="tab" data-section="audit">Журнал правок</div>
 </div>
@@ -1500,6 +1501,22 @@
   </div>
 </div>
 
+<!-- ==================== GALLERY ==================== -->
+<div class="section" id="gallery">
+  <div class="card">
+    <h2>Галерея салона</h2>
+    <p style="color:#888;font-size:12px;margin-bottom:10px;">Фотографии интерьера на публичном сайте. Загрузите фото, задайте подпись, тег и порядок показа. Снимите галочку «Показывать на сайте», чтобы скрыть фото, не удаляя его.</p>
+    <label class="btn btn-primary" style="cursor:pointer;">
+      Добавить фото
+      <input type="file" accept="image/*" style="display:none;" onchange="addGalleryPhoto(this)">
+    </label>
+    <table style="margin-top:14px;">
+      <thead><tr><th>Фото</th><th>Подпись / Тег</th><th>Отображение (Сайт)</th><th>Действия</th><th></th></tr></thead>
+      <tbody id="galleryTable"></tbody>
+    </table>
+  </div>
+</div>
+
 <!-- ==================== REPORTS ==================== -->
 <div class="section" id="reports">
 
@@ -1609,6 +1626,7 @@ const state = {
   expenses: [],
   inventory: [],
   appointments: [],
+  gallery: [],
   // UI-only: which master rows are expanded in the per-master tables.
   // Keyed by master_id (number). Not persisted across reloads.
   uiExpandedMonth: new Set(),
@@ -1691,7 +1709,7 @@ async function initSupabase() {
 async function loadAll() {
   if (!sb) return;
   try {
-    const [ms, sv, mss, ds, att, inc, exp, inv, app] = await Promise.all([
+    const [ms, sv, mss, ds, att, inc, exp, inv, app, gal] = await Promise.all([
       sb.from('masters_public').select('*').order('display_order').order('name'),
       sb.from('services').select('*').order('display_order').order('name'),
       sb.from('master_services').select('*'),
@@ -1706,8 +1724,9 @@ async function loadAll() {
       sb.from('expenses').select('*').order('date', { ascending: false }),
       sb.from('inventory').select('*').order('brand').order('name'),
       sb.from('appointments').select('*').order('scheduled_at', { ascending: true }),
+      sb.from('salon_gallery').select('*').order('display_order').order('id'),
     ]);
-    for (const r of [ms, sv, mss, ds, att, inc, exp, inv, app]) if (r.error) throw r.error;
+    for (const r of [ms, sv, mss, ds, att, inc, exp, inv, app, gal]) if (r.error) throw r.error;
     state.masters        = ms.data  || [];
     state.services       = sv.data  || [];
     state.masterServices = mss.data || [];
@@ -1717,6 +1736,7 @@ async function loadAll() {
     state.expenses       = exp.data || [];
     state.inventory      = inv.data || [];
     state.appointments   = app.data || [];
+    state.gallery        = gal.data || [];
     renderAll();
   } catch (e) {
     console.error(e);
@@ -1793,6 +1813,7 @@ function renderAll() {
   renderFinance();
   renderInventory();
   renderMasters();
+  renderGallery();
   renderReports();
 }
 
@@ -2406,6 +2427,44 @@ function renderMasters() {
     : '<tr><td colspan="6" class="empty-msg">Добавьте мастеров и услуги</td></tr>';
 }
 
+function renderGallery() {
+  const tb = document.getElementById('galleryTable');
+  if (!tb) return;
+  tb.innerHTML = (state.gallery || []).length === 0
+    ? '<tr><td colspan="5" class="empty-msg">Нет фото. Нажмите «Добавить фото».</td></tr>'
+    : state.gallery.map(g => `<tr${g.is_public === false ? ' style="opacity:.6;"' : ''}>
+        <td style="vertical-align:top; width:140px;">
+          ${g.image_url
+            ? `<img src="${escapeText(g.image_url)}" alt="" style="width:120px; height:80px; object-fit:cover; border-radius:var(--radius); display:block;">`
+            : `<div style="width:120px; height:80px; display:flex; align-items:center; justify-content:center; border:1px dashed var(--hairline-strong); border-radius:var(--radius); font-size:11px; color:var(--muted);">Фото скоро</div>`}
+          <label class="btn btn-sm" style="display:block; text-align:center; margin-top:6px; background:transparent; border:1px solid var(--hairline-strong); cursor:pointer;">
+            ${g.image_url ? 'Заменить фото' : 'Загрузить фото'}
+            <input type="file" accept="image/*" style="display:none;" onchange="replaceGalleryImage(${g.id}, this)">
+          </label>
+        </td>
+        <td style="vertical-align:top;">
+          <input type="text" id="galCaption_${g.id}" value="${escapeText(g.caption||'')}" placeholder="Подпись" style="width:100%; margin-bottom:6px; padding:6px; font-size:12px; border:1px solid var(--hairline-strong); background:transparent; border-radius:var(--radius);">
+          <input type="text" id="galTag_${g.id}" value="${escapeText(g.tag||'')}" placeholder="Тег (Волосы, Интерьер…)" style="width:100%; padding:6px; font-size:12px; border:1px solid var(--hairline-strong); background:transparent; border-radius:var(--radius);">
+        </td>
+        <td style="vertical-align:top; width:180px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink); margin-bottom:8px;">
+            <input type="checkbox" id="galPublic_${g.id}" ${g.is_public !== false ? 'checked' : ''}>
+            Показывать на сайте
+          </label>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:11px; color:var(--muted);">Порядок:</span>
+            <input type="number" id="galOrder_${g.id}" value="${g.display_order ?? 100}" style="width:60px; padding:4px 6px; border:1px solid var(--hairline-strong); background:transparent; font-size:12px; border-radius:var(--radius);">
+          </div>
+        </td>
+        <td style="vertical-align:top; width:110px;">
+          <button class="btn btn-primary btn-sm" onclick="saveGallery(${g.id})" style="width:100%;">Сохранить</button>
+        </td>
+        <td style="vertical-align:top; width:40px; text-align:right;">
+          <button class="btn btn-danger btn-sm" onclick="delGallery(${g.id})">X</button>
+        </td>
+      </tr>`).join('');
+}
+
 function renderReports() {
   const from = val('repFrom');
   const to   = val('repTo');
@@ -2884,6 +2943,75 @@ async function archiveMaster(id, makeActive) {
   await loadAll();
 }
 async function delService(id) { if (!confirmDel('Удалить услугу?')) return; const { error } = await sb.from('services').delete().eq('id', id); if (error) return toast('Ошибка: ' + error.message, true); await loadAll(); }
+
+// ── Salon gallery ───────────────────────────────────────────
+// Photos are uploaded to the public 'salon-gallery' Storage bucket; the public
+// URL is stored in salon_gallery.image_url and rendered on the public site.
+const GALLERY_BUCKET = 'salon-gallery';
+
+async function uploadGalleryImage(file) {
+  if (file.size > 8 * 1024 * 1024) throw new Error('Файл больше 8 МБ — выберите фото поменьше');
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await sb.storage.from(GALLERY_BUCKET).upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+  if (error) throw error;
+  return sb.storage.from(GALLERY_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+async function addGalleryPhoto(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    toast('Загрузка фото…');
+    const image_url = await uploadGalleryImage(file);
+    const maxOrder = state.gallery.reduce((m, g) => Math.max(m, g.display_order || 0), 0);
+    const { error } = await sb.from('salon_gallery').insert({ image_url, display_order: maxOrder + 10 });
+    if (error) throw error;
+    toast('Фото добавлено');
+    await loadAll();
+  } catch (e) {
+    toast('Ошибка: ' + (e.message || e), true);
+  } finally {
+    input.value = '';
+  }
+}
+
+async function replaceGalleryImage(id, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    toast('Загрузка фото…');
+    const image_url = await uploadGalleryImage(file);
+    const { error } = await sb.from('salon_gallery').update({ image_url }).eq('id', id);
+    if (error) throw error;
+    toast('Фото обновлено');
+    await loadAll();
+  } catch (e) {
+    toast('Ошибка: ' + (e.message || e), true);
+  } finally {
+    input.value = '';
+  }
+}
+
+async function saveGallery(id) {
+  const caption = val('galCaption_' + id);
+  const tag = val('galTag_' + id);
+  const orderRaw = parseInt(val('galOrder_' + id), 10);
+  const display_order = Number.isNaN(orderRaw) ? 100 : orderRaw;
+  const is_public = document.getElementById('galPublic_' + id).checked;
+
+  const { error } = await sb.from('salon_gallery').update({ caption, tag, display_order, is_public }).eq('id', id);
+  if (error) { toast(error.message, true); return; }
+  toast('Сохранено');
+  await loadAll();
+}
+
+async function delGallery(id) {
+  if (!confirmDel('Удалить это фото из галереи?')) return;
+  const { error } = await sb.from('salon_gallery').delete().eq('id', id);
+  if (error) return toast('Ошибка: ' + error.message, true);
+  await loadAll();
+}
 
 // ── Admin PIN management ────────────────────────────────────
 // Admin password is prompted once per tab session, then cached in sessionStorage.

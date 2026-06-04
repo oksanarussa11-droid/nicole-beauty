@@ -34,6 +34,15 @@ export type ServicePrice = {
   from: number | null;
 };
 
+export type GalleryItem = {
+  id: number;
+  image_url: string | null;
+  caption: string | null;
+  tag: string | null;
+  display_order: number;
+  is_public: boolean;
+};
+
 export async function getPublicMasters(): Promise<Master[]> {
   return sbSelect<Master[]>('masters_public?is_public=eq.true&active=eq.true&order=display_order.asc,name.asc');
 }
@@ -44,6 +53,10 @@ export async function getServices(): Promise<Service[]> {
 
 export async function getMasterServices(): Promise<MasterService[]> {
   return sbSelect<MasterService[]>('master_services?select=*');
+}
+
+export async function getSalonGallery(): Promise<GalleryItem[]> {
+  return sbSelect<GalleryItem[]>('salon_gallery?is_public=eq.true&order=display_order.asc,id.asc');
 }
 
 export function servicePrices(services: Service[], ms: MasterService[], publicMasterIds: number[]): ServicePrice[] {

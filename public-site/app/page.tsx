@@ -1,4 +1,4 @@
-import { getPublicMasters, getServices, getMasterServices, servicePrices } from '@/lib/data';
+import { getPublicMasters, getServices, getMasterServices, getSalonGallery, servicePrices } from '@/lib/data';
 import SiteHeader from '@/components/SiteHeader';
 import Hero from '@/components/Hero';
 import MastersCarousel from '@/components/MastersCarousel';
@@ -12,6 +12,7 @@ export default async function Home() {
   const masters = await getPublicMasters();
   const services = await getServices();
   const masterServices = await getMasterServices();
+  const gallery = await getSalonGallery();
 
   const prices = servicePrices(services, masterServices, masters.map((m) => m.id));
 
@@ -21,7 +22,7 @@ export default async function Home() {
       <main>
         <Hero />
         <MastersCarousel masters={masters} />
-        <SalonGallery />
+        <SalonGallery items={gallery} />
         <Services prices={prices} />
         <BookingWidget
           services={services}
