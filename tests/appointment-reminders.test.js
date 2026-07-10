@@ -5,6 +5,16 @@ const assert = require('node:assert/strict');
 const { normalizePhone, smsRuPhone, maskPhone } = require('../api/_lib/phone');
 const { smsRuDeliveryState } = require('../api/_lib/reminder-providers');
 const { buildMessages } = require('../api/appointment-reminders');
+const configureTelegramWebhook = require('../api/configure-telegram-webhook');
+
+function responseRecorder() {
+  return {
+    statusCode: 0,
+    headers: {},
+    setHeader(name, value) { this.headers[name] = value; },
+    end(value) { this.body = JSON.parse(value); },
+  };
+}
 
 test('normalizes Russian phone formats to E.164', () => {
   assert.equal(normalizePhone('8 (999) 123-45-67'), '+79991234567');
@@ -34,4 +44,41 @@ test('builds a localized reminder without exposing internal identifiers', () => 
   assert.match(messages.telegram, /Стрижка/);
   assert.match(messages.telegram, /Ирина/);
   assert.match(messages.sms, /^Nicole Beauty:/);
+});
+
+test('protects Telegram webhook configuration with the cron secret', async () => {
+  process.env.CRON_SECRET = 'test-secret';
+  const res = responseRecorder();
+  await configureTelegramWebhook({ method: 'POST', headers: {} }, res);
+  assert.equal(res.statusCode, 401);
+  assert.deepEqual(res.body, { error: 'Unauthorized' });
+});
+
+test('configures Telegram without returning sensitive values', async () => {
+  process.env.CRON_SECRET = 'test-secret';
+  process.env.TELEGRAM_BOT_TOKEN = 'token-that-must-not-leak';
+  process.env.TELEGRAM_WEBHOOK_SECRET = 'webhook-secret-that-must-not-leak';
+  const calls = [];
+  const originalFetch = global.fetch;
+  global.fetch = async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body) });
+    const result = url.endsWith('/getMe')
+      ? { ok: true, result: { id: 123, username: 'nicole_test_bot' } }
+      : { ok: true, result: true };
+    return { ok: true, json: async () => result };
+  };
+
+  try {
+    const res = responseRecorder();
+    await configureTelegramWebhook({
+      method: 'POST',
+      headers: { authorization: 'Bearer test-secret' },
+    }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.bot.username, 'nicole_test_bot');
+    assert.equal(calls[1].body.secret_token, process.env.TELEGRAM_WEBHOOK_SECRET);
+    assert.doesNotMatch(JSON.stringify(res.body), /token-that-must-not-leak|webhook-secret-that-must-not-leak/);
+  } finally {
+    global.fetch = originalFetch;
+  }
 });

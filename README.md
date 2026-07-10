@@ -313,6 +313,12 @@ Supabase Cron (`pg_cron` + `pg_net`) для вызова `/api/appointment-remin
 `appointment_reminder_cron_secret`; SQL конфигурации находится в
 `supabase/appointment_reminders_cron.sql`.
 
+После ротации `TELEGRAM_BOT_TOKEN` или `TELEGRAM_WEBHOOK_SECRET` webhook можно
+безопасно перерегистрировать POST-запросом к
+`/api/configure-telegram-webhook` с заголовком
+`Authorization: Bearer <CRON_SECRET>`. Токен Telegram никогда не возвращается
+клиенту.
+
 Job идемпотентен: повторный или параллельный вызов не создаёт второе напоминание,
 а пропущенный запуск догоняется следующим. Результаты планировщика видны в
 `cron.job_run_details`, а последние HTTP-ответы — в `net._http_response`.
