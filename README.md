@@ -307,11 +307,15 @@ curl --request POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhoo
 
 ### Планировщик
 
-`vercel.json` запускает `/api/appointment-reminders` каждые 5 минут. Такой интервал
-требует платный план Vercel; Hobby разрешает cron только раз в сутки. На Hobby
-используйте внешний cron/Supabase Cron с тем же GET endpoint и заголовком
-`Authorization: Bearer <CRON_SECRET>`. Job идемпотентен: повторный или параллельный
-вызов не создаёт второе напоминание, а пропущенный запуск догоняется следующим.
+План Vercel Hobby разрешает cron только раз в сутки, поэтому production использует
+Supabase Cron (`pg_cron` + `pg_net`) для вызова `/api/appointment-reminders` каждые
+5 минут. Секрет авторизации хранится зашифрованным в Supabase Vault под именем
+`appointment_reminder_cron_secret`; SQL конфигурации находится в
+`supabase/appointment_reminders_cron.sql`.
+
+Job идемпотентен: повторный или параллельный вызов не создаёт второе напоминание,
+а пропущенный запуск догоняется следующим. Результаты планировщика видны в
+`cron.job_run_details`, а последние HTTP-ответы — в `net._http_response`.
 
 Локальная проверка endpoint:
 
