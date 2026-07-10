@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "mcp_tool",
+            "server": "auggie",
+            "tool": "codebase-retrieval",
+            "input": {
+              "information_request": "Before Claude starts the following task, retrieve the codebase context required to execute it safely and accurately. Identify the relevant files, symbols, data flows, tests, conventions, and constraints. User task: ${prompt}"
+            },
+            "timeout": 60,
+            "statusMessage": "Auggie buscando contexto do projeto..."
+          }
+        ]
+      }
+    ]
+  }
+}

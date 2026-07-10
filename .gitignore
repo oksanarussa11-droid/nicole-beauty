@@ -4,7 +4,8 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
-.claude/
+.claude/*
+!.claude/settings.json
 
 # Excel lock files and user spreadsheets (not part of the web app)
 .~lock.*
