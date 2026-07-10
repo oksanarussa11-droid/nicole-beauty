@@ -244,3 +244,77 @@ RLS: `masters`, `services`, `master_services`, `day_summaries`, `income`, `expen
   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 
 Все админ-действия пишутся в `attendance_audit` и шлются в Telegram-чат.
+
+## Напоминания клиентам за 3 часа
+
+Система автоматически отправляет напоминание для каждой активной записи
+(`scheduled` / `confirmed`) примерно за 3 часа до визита:
+
+1. Если клиент запустил Telegram-бот и подтвердил свой номер кнопкой
+   «Подтвердить номер телефона», сообщение отправляется в Telegram.
+2. Если подтверждённого Telegram-контакта нет, используется SMS.RU.
+3. Результат каждой попытки, канал, статус провайдера и fallback видны во вкладке
+   администратора **«Уведомления»**.
+
+Telegram Bot API не позволяет искать произвольный аккаунт по номеру телефона.
+Поэтому Telegram считается подтверждённым только после того, как сам клиент
+открыл бота и поделился собственным контактом. Телефон обязателен для всех новых
+записей и сохраняется в формате E.164.
+
+### Миграция базы
+
+```sh
+supabase db push
+```
+
+Миграция `20260710173957_appointment_reminders.sql` создаёт закрытые RLS-таблицы
+`notification_contacts` и `notification_deliveries`, добавляет нормализованный
+телефон в `appointments` и атомарную функцию claim. Anon/authenticated не имеют
+доступа к контактам или журналу.
+
+### Переменные окружения
+
+Добавьте в Vercel Production (шаблон — `.env.example`):
+
+| Key | Назначение |
+|-----|------------|
+| `TELEGRAM_BOT_TOKEN` | токен бота из BotFather |
+| `TELEGRAM_WEBHOOK_SECRET` | случайная строка `A-Z a-z 0-9 _ -`, 16+ символов |
+| `SMS_RU_API_ID` | API-ключ кабинета SMS.RU |
+| `SMS_RU_FROM` | согласованное имя отправителя SMS.RU; можно оставить пустым для отправителя по умолчанию |
+| `CRON_SECRET` | случайная строка 16+ символов для защиты cron endpoint |
+
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD` и
+`ADMIN_SESSION_SECRET` остаются обязательными как раньше. После изменения env vars
+сделайте redeploy.
+
+### Telegram webhook
+
+После production deploy зарегистрируйте webhook, подставив домен админ-проекта:
+
+```sh
+export TELEGRAM_BOT_TOKEN='...'
+export TELEGRAM_WEBHOOK_SECRET='...'
+curl --request POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  --data-urlencode "url=https://nicole-beauty.vercel.app/api/telegram-webhook" \
+  --data-urlencode "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
+  --data-urlencode 'allowed_updates=["message","my_chat_member"]'
+```
+
+Отправьте клиентам ссылку `https://t.me/<имя_бота>`: при `/start` бот предложит
+подтвердить номер. Перед использованием SMS получите согласие клиента на сервисные
+уведомления и согласуйте имя отправителя в SMS.RU.
+
+### Планировщик
+
+`vercel.json` запускает `/api/appointment-reminders` каждые 5 минут. Такой интервал
+требует платный план Vercel; Hobby разрешает cron только раз в сутки. На Hobby
+используйте внешний cron/Supabase Cron с тем же GET endpoint и заголовком
+`Authorization: Bearer <CRON_SECRET>`. Job идемпотентен: повторный или параллельный
+вызов не создаёт второе напоминание, а пропущенный запуск догоняется следующим.
+
+Локальная проверка endpoint:
+
+```sh
+curl -H "Authorization: Bearer ${CRON_SECRET}" http://localhost:3000/api/appointment-reminders
+```

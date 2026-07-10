@@ -819,8 +819,8 @@
           <input class="fld" type="text" id="mApptClient" maxlength="200">
         </div>
         <div>
-          <label class="lbl">Телефон</label>
-          <input class="fld" type="text" id="mApptPhone" maxlength="40" inputmode="tel">
+          <label class="lbl">Телефон *</label>
+          <input class="fld" type="text" id="mApptPhone" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="+7 999 123-45-67" required>
         </div>
         <div style="grid-column:1/-1;">
           <label class="lbl">Заметка</label>
@@ -1106,7 +1106,8 @@
         return toast('Цена некорректна', true);
       }
       const clientName = $('mApptClient').value.trim() || null;
-      const clientPhone = $('mApptPhone').value.trim() || null;
+      const clientPhone = $('mApptPhone').value.trim();
+      if (!clientPhone) return toast('Укажите телефон для напоминания', true);
       const note = $('mApptNote').value.trim() || null;
 
       try {
@@ -1128,7 +1129,7 @@
         if (r.status === 409) return toast('Слот уже занят', true);
         if (r.status === 401) { toast('Неверный PIN, войдите снова', true); logout(); return; }
         if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
-        toast('Запись создана');
+        toast('Запись создана · напоминание: ' + (data.reminder_channel === 'telegram' ? 'Telegram' : 'SMS'));
         // Clear inputs (keep datetime so the user can book another nearby slot).
         $('mApptClient').value = '';
         $('mApptPhone').value = '';
