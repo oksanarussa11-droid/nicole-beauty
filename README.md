@@ -314,8 +314,8 @@ Supabase Cron (`pg_cron` + `pg_net`) для вызова `/api/appointment-remin
 `supabase/appointment_reminders_cron.sql`.
 
 После ротации `TELEGRAM_BOT_TOKEN` или `TELEGRAM_WEBHOOK_SECRET` webhook можно
-безопасно перерегистрировать POST-запросом к
-`/api/configure-telegram-webhook` с заголовком
+безопасно перерегистрировать POST-запросом к `/api/appointment-reminders` с
+JSON `{"action":"configure_telegram_webhook"}` и заголовком
 `Authorization: Bearer <CRON_SECRET>`. Токен Telegram никогда не возвращается
 клиенту.
 

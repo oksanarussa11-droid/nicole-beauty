@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { normalizePhone, smsRuPhone, maskPhone } = require('../api/_lib/phone');
 const { smsRuDeliveryState } = require('../api/_lib/reminder-providers');
-const { buildMessages } = require('../api/appointment-reminders');
-const configureTelegramWebhook = require('../api/configure-telegram-webhook');
+const appointmentReminders = require('../api/appointment-reminders');
+const { buildMessages } = appointmentReminders;
 
 function responseRecorder() {
   return {
@@ -49,7 +49,7 @@ test('builds a localized reminder without exposing internal identifiers', () => 
 test('protects Telegram webhook configuration with the cron secret', async () => {
   process.env.CRON_SECRET = 'test-secret';
   const res = responseRecorder();
-  await configureTelegramWebhook({ method: 'POST', headers: {} }, res);
+  await appointmentReminders({ method: 'POST', headers: {}, body: {} }, res);
   assert.equal(res.statusCode, 401);
   assert.deepEqual(res.body, { error: 'Unauthorized' });
 });
@@ -70,9 +70,10 @@ test('configures Telegram without returning sensitive values', async () => {
 
   try {
     const res = responseRecorder();
-    await configureTelegramWebhook({
+    await appointmentReminders({
       method: 'POST',
       headers: { authorization: 'Bearer test-secret' },
+      body: { action: 'configure_telegram_webhook' },
     }, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.bot.username, 'nicole_test_bot');

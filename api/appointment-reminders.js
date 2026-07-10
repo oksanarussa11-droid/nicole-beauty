@@ -3,6 +3,7 @@
 
 'use strict';
 
+const { timingSafeEqual } = require('crypto');
 const {
   sendTelegram,
   sendSmsRu,
@@ -12,6 +13,12 @@ const {
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+function safeEqual(a, b) {
+  const left = Buffer.from(String(a || ''), 'utf8');
+  const right = Buffer.from(String(b || ''), 'utf8');
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
 function json(res, code, payload) {
   res.statusCode = code;
@@ -238,17 +245,66 @@ async function runPool(rows, concurrency, worker) {
   return results;
 }
 
+async function telegram(method, payload) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.ok) {
+    throw new Error(result.description || `Telegram HTTP ${response.status}`);
+  }
+  return result.result;
+}
+
+async function configureTelegramWebhook() {
+  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_WEBHOOK_SECRET) {
+    throw new Error('Telegram env vars missing');
+  }
+  const baseUrl = String(process.env.PUBLIC_BASE_URL || 'https://nicole-beauty.vercel.app').replace(/\/$/, '');
+  const bot = await telegram('getMe');
+  await telegram('setWebhook', {
+    url: `${baseUrl}/api/telegram-webhook`,
+    secret_token: process.env.TELEGRAM_WEBHOOK_SECRET,
+    allowed_updates: ['message', 'my_chat_member'],
+  });
+  return {
+    ok: true,
+    webhook_url: `${baseUrl}/api/telegram-webhook`,
+    bot: { id: bot.id, username: bot.username || null },
+  };
+}
+
 module.exports = async (req, res) => {
-  if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+  if (!['GET', 'POST'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
   // The same repository is deployed as the masters' SITE=pro project. Vercel
   // reads the same cron config there, so exit before claiming any delivery.
   // Only the admin project is allowed to run the notification pipeline.
   if (process.env.SITE === 'pro') {
     return json(res, 200, { ok: true, skipped: 'pro_project' });
   }
-  if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || !safeEqual(req.headers.authorization, `Bearer ${process.env.CRON_SECRET}`)) {
     return json(res, 401, { error: 'Unauthorized' });
   }
+
+  if (req.method === 'POST') {
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    if (body?.action !== 'configure_telegram_webhook') {
+      return json(res, 400, { error: 'Unsupported action' });
+    }
+    try {
+      return json(res, 200, await configureTelegramWebhook());
+    } catch (error) {
+      console.error('configure-telegram-webhook error:', error);
+      return json(res, 502, { error: String(error?.message || error) });
+    }
+  }
+
   if (!SUPABASE_URL || !SERVICE_ROLE) return json(res, 500, { error: 'Supabase env vars missing' });
 
   try {
@@ -277,3 +333,4 @@ module.exports = async (req, res) => {
 
 module.exports.buildMessages = buildMessages;
 module.exports.samaraParts = samaraParts;
+module.exports.configureTelegramWebhook = configureTelegramWebhook;
