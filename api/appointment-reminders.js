@@ -10,6 +10,7 @@ const {
   getSmsRuStatuses,
   smsRuDeliveryState,
 } = require('./_lib/reminder-providers');
+const { normalizePhone, maskPhone } = require('./_lib/phone');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -277,6 +278,56 @@ async function configureTelegramWebhook() {
   };
 }
 
+async function validateTelegramReminder(phoneInput) {
+  if (!SUPABASE_URL || !SERVICE_ROLE) {
+    const error = new Error('Supabase env vars missing');
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const phone = normalizePhone(phoneInput);
+  if (!phone) {
+    const error = new Error('Invalid phone number');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const contacts = await sb(
+    'GET',
+    `notification_contacts?select=telegram_chat_id,telegram_verified_at,telegram_blocked_at&phone_e164=eq.${encodeURIComponent(phone)}&telegram_verified_at=not.is.null&telegram_blocked_at=is.null&limit=1`,
+  );
+  const contact = Array.isArray(contacts) ? contacts[0] : null;
+  if (!contact?.telegram_chat_id) {
+    const error = new Error('Telegram contact not verified for this phone');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const result = await sendTelegram({
+    token: process.env.TELEGRAM_BOT_TOKEN,
+    chatId: contact.telegram_chat_id,
+    text: [
+      'Тест напоминания Nicole Beauty ✅',
+      '',
+      'Telegram успешно подтверждён для уведомлений о записи.',
+      'Это тестовое сообщение, визит не был создан или изменён.',
+    ].join('\n'),
+  });
+  if (!result.ok) {
+    const error = new Error(result.description || 'Telegram test delivery failed');
+    error.statusCode = result.retryable ? 503 : 502;
+    throw error;
+  }
+
+  return {
+    ok: true,
+    channel: 'telegram',
+    provider: 'telegram',
+    phone: maskPhone(phone),
+    provider_message_id: result.messageId || null,
+  };
+}
+
 module.exports = async (req, res) => {
   if (!['GET', 'POST'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
   // The same repository is deployed as the masters' SITE=pro project. Vercel
@@ -294,14 +345,17 @@ module.exports = async (req, res) => {
     if (typeof body === 'string') {
       try { body = JSON.parse(body); } catch { body = {}; }
     }
-    if (body?.action !== 'configure_telegram_webhook') {
-      return json(res, 400, { error: 'Unsupported action' });
-    }
     try {
-      return json(res, 200, await configureTelegramWebhook());
+      if (body?.action === 'configure_telegram_webhook') {
+        return json(res, 200, await configureTelegramWebhook());
+      }
+      if (body?.action === 'validate_telegram_reminder') {
+        return json(res, 200, await validateTelegramReminder(body.phone));
+      }
+      return json(res, 400, { error: 'Unsupported action' });
     } catch (error) {
-      console.error('configure-telegram-webhook error:', error);
-      return json(res, 502, { error: String(error?.message || error) });
+      console.error('appointment-reminders operation error:', error);
+      return json(res, Number(error?.statusCode || 502), { error: String(error?.message || error) });
     }
   }
 
@@ -334,3 +388,4 @@ module.exports = async (req, res) => {
 module.exports.buildMessages = buildMessages;
 module.exports.samaraParts = samaraParts;
 module.exports.configureTelegramWebhook = configureTelegramWebhook;
+module.exports.validateTelegramReminder = validateTelegramReminder;
