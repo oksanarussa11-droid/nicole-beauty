@@ -68,6 +68,7 @@ export default function BookingWidget({
   const [contact, setContact] = useState('');
   const [contactMethod, setContactMethod] = useState<ContactMethod>('whatsapp');
   const [note, setNote] = useState('');
+  const [notificationConsent, setNotificationConsent] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -88,7 +89,7 @@ export default function BookingWidget({
 
   const reset = () => {
     setServiceId(''); setMasterId(''); setHelpChoosing(false); setContactMethod('whatsapp');
-    setName(''); setContact(''); setDay(''); setPeriod(''); setNote('');
+    setName(''); setContact(''); setDay(''); setPeriod(''); setNote(''); setNotificationConsent(false);
     setError(''); setTouched({}); setSuccess(false);
   };
 
@@ -138,6 +139,7 @@ export default function BookingWidget({
         client_name: name,
         client_contact: contact,
         contact_method: contactMethod,
+        notification_consent: notificationConsent,
         note,
       };
 
@@ -181,6 +183,16 @@ export default function BookingWidget({
               <span className="seal"><IcCheck /></span>
               <h3>Заявка отправлена</h3>
               <p>Спасибо, {name || 'что выбрали нас'}! Мы свяжемся с вами в ближайшее время для подтверждения записи.</p>
+              {notificationConsent && (
+                <a
+                  className="btn btn-primary"
+                  href="https://t.me/nicole_salon_alerts_bot?start=reminders"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <IcTelegram /> Подключить напоминания в Telegram
+                </a>
+              )}
               <button type="button" className="btn btn-ghost again" onClick={reset}>Оставить ещё одну</button>
             </div>
           ) : (
@@ -272,6 +284,16 @@ export default function BookingWidget({
                 <label>Комментарий</label>
                 <textarea className="textarea" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ваши пожелания к визиту" />
               </div>
+
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={notificationConsent}
+                  onChange={(e) => setNotificationConsent(e.target.checked)}
+                />
+                <span className="box"><IcCheck /></span>
+                <span>Я согласен(на) получать сервисные напоминания о записи в Telegram или по SMS.</span>
+              </label>
 
               <div className="submit-row">
                 <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
