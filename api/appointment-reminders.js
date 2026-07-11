@@ -328,6 +328,66 @@ async function validateTelegramReminder(phoneInput) {
   };
 }
 
+async function provisionConfiguredTelegramContact(phoneInput) {
+  if (!SUPABASE_URL || !SERVICE_ROLE) {
+    const error = new Error('Supabase env vars missing');
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const phone = normalizePhone(phoneInput);
+  if (!phone) {
+    const error = new Error('Invalid phone number');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const configuredChatId = process.env.TELEGRAM_CHAT_ID;
+  if (!configuredChatId || !process.env.TELEGRAM_BOT_TOKEN) {
+    const error = new Error('Configured Telegram chat is missing');
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const chat = await telegram('getChat', { chat_id: configuredChatId });
+  if (chat?.type !== 'private') {
+    const error = new Error('Configured Telegram destination is not a private chat');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const telegramUserId = String(chat.id);
+  const now = new Date().toISOString();
+  await sb(
+    'DELETE',
+    `notification_contacts?telegram_user_id=eq.${encodeURIComponent(telegramUserId)}&phone_e164=neq.${encodeURIComponent(phone)}`,
+  );
+  const saved = await sb(
+    'POST',
+    'notification_contacts?on_conflict=phone_e164',
+    {
+      phone_e164: phone,
+      telegram_user_id: telegramUserId,
+      telegram_chat_id: telegramUserId,
+      telegram_username: chat.username || null,
+      telegram_first_name: chat.first_name || null,
+      telegram_verified_at: now,
+      telegram_blocked_at: null,
+      last_seen_at: now,
+      updated_at: now,
+    },
+    'resolution=merge-duplicates,return=representation',
+  );
+
+  return {
+    ok: true,
+    provisioned: true,
+    phone: maskPhone(phone),
+    telegram_username: chat.username || null,
+    contact_id: Array.isArray(saved) ? saved[0]?.id || null : null,
+  };
+}
+
 module.exports = async (req, res) => {
   if (!['GET', 'POST'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
   // The same repository is deployed as the masters' SITE=pro project. Vercel
@@ -351,6 +411,9 @@ module.exports = async (req, res) => {
       }
       if (body?.action === 'validate_telegram_reminder') {
         return json(res, 200, await validateTelegramReminder(body.phone));
+      }
+      if (body?.action === 'provision_configured_telegram_contact') {
+        return json(res, 200, await provisionConfiguredTelegramContact(body.phone));
       }
       return json(res, 400, { error: 'Unsupported action' });
     } catch (error) {
@@ -389,3 +452,4 @@ module.exports.buildMessages = buildMessages;
 module.exports.samaraParts = samaraParts;
 module.exports.configureTelegramWebhook = configureTelegramWebhook;
 module.exports.validateTelegramReminder = validateTelegramReminder;
+module.exports.provisionConfiguredTelegramContact = provisionConfiguredTelegramContact;
