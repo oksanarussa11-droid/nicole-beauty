@@ -1217,6 +1217,7 @@
   <div class="tab" data-section="gallery">Галерея</div>
   <div class="tab" data-section="reports">Отчёты</div>
   <div class="tab" data-section="audit">Журнал правок</div>
+  <div class="tab" data-section="notifications">Уведомления</div>
 </div>
 
 <div class="content" id="mainContent" style="display:none;">
@@ -1351,8 +1352,9 @@
         <input type="text" id="apptClient" maxlength="200">
       </div>
       <div class="form-group">
-        <label>Телефон</label>
-        <input type="text" id="apptPhone" maxlength="40" inputmode="tel">
+        <label>Телефон *</label>
+        <input type="text" id="apptPhone" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="+7 999 123-45-67" required>
+        <small id="apptContactStatus" style="display:block;margin-top:5px;color:var(--muted);font-size:11px;letter-spacing:0;text-transform:none;">Номер нужен для напоминания</small>
       </div>
       <div class="form-group" style="grid-column:1/-1;">
         <label>Заметка</label>
@@ -1605,6 +1607,36 @@
   </div>
 </div>
 
+<!-- ==================== NOTIFICATIONS ==================== -->
+<div class="section" id="notifications">
+  <div class="stats" id="ntStats"></div>
+  <div class="card">
+    <h2>Журнал напоминаний</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px;letter-spacing:.05em;">Напоминания отправляются примерно за 3 часа до записи: в подтверждённый Telegram клиента или по SMS.</p>
+    <div class="ns-toggle-bar" style="margin-bottom:18px">
+      <label style="text-transform:none;letter-spacing:0">С <input type="date" id="ntFrom" style="margin-left:6px"></label>
+      <label style="text-transform:none;letter-spacing:0">По <input type="date" id="ntTo" style="margin-left:6px"></label>
+      <label style="text-transform:none;letter-spacing:0">Канал <select id="ntChannel" style="margin-left:6px">
+        <option value="">(все)</option>
+        <option value="telegram">Telegram</option>
+        <option value="sms">SMS</option>
+        <option value="none">Нет канала</option>
+      </select></label>
+      <label style="text-transform:none;letter-spacing:0">Статус <select id="ntStatus" style="margin-left:6px">
+        <option value="">(все)</option>
+        <option value="processing">в обработке</option>
+        <option value="sent">отправлено</option>
+        <option value="delivered">доставлено</option>
+        <option value="failed">ошибка</option>
+        <option value="skipped">пропущено</option>
+      </select></label>
+      <button type="button" class="btn btn-sm btn-primary" id="ntReload" style="margin-left:auto">Обновить</button>
+    </div>
+    <div id="ntTableWrap"></div>
+    <div id="ntPager" style="margin-top:18px;display:flex;gap:10px;align-items:center;justify-content:center;font-size:12px;color:var(--muted);letter-spacing:.05em"></div>
+  </div>
+</div>
+
 </div>
 
 <span class="status-dot-footer" id="statusDot" title="Статус подключения"></span>
@@ -1803,6 +1835,7 @@ function showSection(id) {
   document.querySelector('.tab[data-section="' + id + '"]').classList.add('active');
   renderAll();
   if (id === 'audit') loadAudit();
+  if (id === 'notifications') loadNotifications();
 }
 
 // ===================== RENDER =====================
@@ -1935,7 +1968,7 @@ function renderSlot(a) {
   return `<div class="sched-slot" data-id="${a.id}" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;border:1px solid #ece4ec;border-radius:8px;margin-bottom:6px;background:#fff;">
     <span style="font-family:'DM Sans',sans-serif;font-variant-numeric:tabular-nums;font-weight:600;min-width:50px;">${time}</span>
     <span style="min-width:120px;">${escapeHtmlSchedule(masterName(a.master_id))}</span>
-    <span style="flex:1;min-width:180px;">${escapeHtmlSchedule(a.service_name || '—')}${a.client_name ? ' · <em style="color:var(--muted);">' + escapeHtmlSchedule(a.client_name) + '</em>' : ''}</span>
+    <span style="flex:1;min-width:180px;">${escapeHtmlSchedule(a.service_name || '—')}${a.client_name ? ' · <em style="color:var(--muted);">' + escapeHtmlSchedule(a.client_name) + '</em>' : ''}${a.client_phone ? '<small style="display:block;color:var(--muted);">' + escapeHtmlSchedule(a.client_phone) + '</small>' : ''}</span>
     <span style="min-width:90px;text-align:right;font-variant-numeric:tabular-nums;">${priceStr}</span>
     <span class="sched-badge ${badge.cls}" style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">${badge.label}</span>
     <span class="sched-actions" style="display:flex;gap:6px;">
@@ -2051,6 +2084,7 @@ async function createAppointment() {
   if (!when) return toast('Укажите дату и время', true);
   if (!masterId) return toast('Выберите мастера', true);
   if (!serviceId) return toast('Выберите услугу', true);
+  if (!phone) return toast('Укажите телефон для напоминания', true);
 
   const adminPw = getAdminPassword(false);
   if (!adminPw) return;
@@ -2074,14 +2108,55 @@ async function createAppointment() {
     if (r.status === 401) { sessionStorage.removeItem('nicole.adminPw'); toast('Неверный пароль администратора', true); return; }
     if (r.status === 409) return toast('Слот уже занят: ' + (data.error || ''), true);
     if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
-    toast('Запись создана');
+    toast('Запись создана · напоминание: ' + (data.reminder_channel === 'telegram' ? 'Telegram' : 'SMS'));
     document.getElementById('apptClient').value = '';
     document.getElementById('apptPhone').value = '';
+    document.getElementById('apptContactStatus').textContent = 'Номер нужен для напоминания';
+    document.getElementById('apptContactStatus').style.color = 'var(--muted)';
     document.getElementById('apptNote').value = '';
     await loadAll();
   } catch (e) {
     toast('Ошибка: ' + (e.message || e), true);
   }
+}
+
+let apptPhoneCheckTimer = null;
+async function checkAppointmentContact() {
+  const phone = document.getElementById('apptPhone').value.trim();
+  const status = document.getElementById('apptContactStatus');
+  if (!phone) {
+    status.textContent = 'Номер нужен для напоминания';
+    status.style.color = 'var(--muted)';
+    return;
+  }
+  status.textContent = 'Проверяем Telegram…';
+  status.style.color = 'var(--muted)';
+  try {
+    const params = new URLSearchParams({ phone });
+    const r = await fetch('/api/admin-notifications?' + params.toString(), {
+      headers: { 'x-admin-password': _adminPw() },
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    if (!data.valid) {
+      status.textContent = 'Неверный формат номера';
+      status.style.color = 'var(--negative)';
+    } else if (data.telegram_verified) {
+      status.textContent = '✓ Telegram подтверждён — напоминание придёт в бот';
+      status.style.color = 'var(--positive)';
+    } else {
+      status.textContent = 'Telegram не подтверждён — будет отправлено SMS';
+      status.style.color = 'var(--warm)';
+    }
+  } catch (e) {
+    status.textContent = 'Не удалось проверить канал: ' + (e.message || e);
+    status.style.color = 'var(--negative)';
+  }
+}
+
+function scheduleAppointmentContactCheck() {
+  clearTimeout(apptPhoneCheckTimer);
+  apptPhoneCheckTimer = setTimeout(checkAppointmentContact, 450);
 }
 
 function renderDayMasterGrid() {
@@ -3297,6 +3372,7 @@ async function bootDashboard() {
   document.getElementById('schTo'    ).addEventListener('change', renderSchedule);
   document.getElementById('schMaster').addEventListener('change', renderSchedule);
   document.getElementById('schStatus').addEventListener('change', renderSchedule);
+  document.getElementById('apptPhone').addEventListener('input', scheduleAppointmentContactCheck);
 
   const ok = await initSupabase();
   if (ok) await loadAll();
@@ -3607,6 +3683,108 @@ function renderAuditPager() {
 document.addEventListener('DOMContentLoaded', () => {
   const reload = document.getElementById('auReload');
   if (reload) reload.addEventListener('click', () => { audit.offset = 0; loadAudit(); });
+});
+
+// ===================== NOTIFICATION LOG TAB =====================
+const notificationLog = { rows: [], total: 0, activeTelegramContacts: 0, limit: 50, offset: 0 };
+
+const NOTIFICATION_STATUS = {
+  processing: { label: 'в обработке', color: 'var(--warm)' },
+  sent:       { label: 'отправлено',  color: 'var(--accent)' },
+  delivered:  { label: 'доставлено',  color: 'var(--positive)' },
+  failed:     { label: 'ошибка',       color: 'var(--negative)' },
+  skipped:    { label: 'пропущено',    color: 'var(--muted)' },
+};
+
+async function loadNotifications() {
+  const $ = id => document.getElementById(id);
+  const params = new URLSearchParams();
+  if ($('ntFrom').value) params.set('from', $('ntFrom').value);
+  if ($('ntTo').value) params.set('to', $('ntTo').value);
+  if ($('ntChannel').value) params.set('channel', $('ntChannel').value);
+  if ($('ntStatus').value) params.set('status', $('ntStatus').value);
+  params.set('limit', notificationLog.limit);
+  params.set('offset', notificationLog.offset);
+  $('ntTableWrap').innerHTML = '<p class="empty-msg">Загрузка…</p>';
+  try {
+    const r = await fetch('/api/admin-notifications?' + params.toString(), {
+      headers: { 'x-admin-password': _adminPw() },
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    notificationLog.rows = data.rows || [];
+    notificationLog.total = data.total ?? notificationLog.rows.length;
+    notificationLog.activeTelegramContacts = data.active_telegram_contacts || 0;
+    renderNotifications();
+  } catch (e) {
+    $('ntTableWrap').textContent = 'Ошибка: ' + (e.message || e);
+  }
+}
+
+function fmtNotificationDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('ru-RU', {
+    timeZone: 'Europe/Samara', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function renderNotifications() {
+  const rows = notificationLog.rows;
+  const success = rows.filter(row => ['sent', 'delivered'].includes(row.status)).length;
+  const failed = rows.filter(row => row.status === 'failed').length;
+  document.getElementById('ntStats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Всего по фильтру</div><div class="stat-value">${notificationLog.total}</div></div>
+    <div class="stat-card green"><div class="stat-label">Успешно на странице</div><div class="stat-value">${success}</div></div>
+    <div class="stat-card"><div class="stat-label">Ошибки на странице</div><div class="stat-value">${failed}</div></div>
+    <div class="stat-card"><div class="stat-label">Telegram подтверждён</div><div class="stat-value">${notificationLog.activeTelegramContacts}</div></div>`;
+
+  const wrap = document.getElementById('ntTableWrap');
+  if (!rows.length) {
+    wrap.innerHTML = '<p class="empty-msg">Напоминаний по выбранному фильтру нет.</p>';
+    renderNotificationPager();
+    return;
+  }
+
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Попытка</th><th>Запись</th><th>Клиент</th><th>Канал</th><th>Статус</th><th>Детали</th></tr></thead>
+    <tbody>${rows.map(row => {
+      const status = NOTIFICATION_STATUS[row.status] || { label: row.status, color: 'var(--muted)' };
+      const channel = row.channel === 'telegram' ? 'Telegram' : row.channel === 'sms' ? 'SMS' : '—';
+      const fallback = row.fallback_from ? `<small style="display:block;color:var(--muted)">резерв после ${escapeText(row.fallback_from)}</small>` : '';
+      const detail = row.error_detail || row.provider_status_text || '';
+      return `<tr>
+        <td>${fmtNotificationDate(row.attempted_at || row.created_at)}<small style="display:block;color:var(--muted)">попытка ${row.attempt_count || 1}</small></td>
+        <td>${fmtNotificationDate(row.appointment_scheduled_at)}<small style="display:block;color:var(--muted)">${escapeText(row.service_name || '—')} · ${escapeText(row.master_name || '—')}</small></td>
+        <td>${escapeText(row.client_name || '—')}<small style="display:block;color:var(--muted)">${escapeText(row.phone_e164 || '—')}</small></td>
+        <td>${channel}${fallback}</td>
+        <td><span style="color:${status.color};font-weight:500">${escapeText(status.label)}</span>${row.delivered_at ? `<small style="display:block;color:var(--muted)">${fmtNotificationDate(row.delivered_at)}</small>` : ''}</td>
+        <td>${escapeText(detail)}${row.provider_message_id ? `<small style="display:block;color:var(--muted)">${escapeText(row.provider || '')} · ${escapeText(row.provider_message_id)}</small>` : ''}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+  renderNotificationPager();
+}
+
+function renderNotificationPager() {
+  const totalPages = Math.max(1, Math.ceil(notificationLog.total / notificationLog.limit));
+  const current = Math.floor(notificationLog.offset / notificationLog.limit) + 1;
+  const pager = document.getElementById('ntPager');
+  pager.innerHTML = `<button class="btn btn-sm" id="ntPrev" ${current <= 1 ? 'disabled' : ''}>←</button>
+    <span>стр. ${current} из ${totalPages} · всего ${notificationLog.total}</span>
+    <button class="btn btn-sm" id="ntNext" ${current >= totalPages ? 'disabled' : ''}>→</button>`;
+  document.getElementById('ntPrev').onclick = () => {
+    notificationLog.offset = Math.max(0, notificationLog.offset - notificationLog.limit);
+    loadNotifications();
+  };
+  document.getElementById('ntNext').onclick = () => {
+    notificationLog.offset += notificationLog.limit;
+    loadNotifications();
+  };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const reload = document.getElementById('ntReload');
+  if (reload) reload.addEventListener('click', () => { notificationLog.offset = 0; loadNotifications(); });
 });
 </script>
 

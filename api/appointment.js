@@ -13,6 +13,7 @@
 // Browser-facing anon key cannot insert/update/delete due to RLS.
 
 const { scryptSync, timingSafeEqual } = require('crypto');
+const { normalizePhone } = require('./_lib/phone');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -201,8 +202,14 @@ async function handleCreate(body, req) {
   }
 
   const clientName = (body.client_name || '').toString().slice(0, 200) || null;
-  const clientPhone = (body.client_phone || '').toString().slice(0, 40) || null;
+  const clientPhoneRaw = (body.client_phone || '').toString().slice(0, 40);
+  const clientPhone = normalizePhone(clientPhoneRaw);
+  if (!clientPhone) {
+    const e = new Error('client_phone must be a valid phone number with country code'); e.status = 400; throw e;
+  }
   const note = (body.note || '').toString().slice(0, 500) || null;
+  const notificationConsent = body.notification_consent === true;
+  const notificationConsentAt = notificationConsent ? new Date().toISOString() : null;
 
   // Validate the master+service pair exists and capture service name + sanity-check price.
   const ms = await sb(
@@ -218,6 +225,12 @@ async function handleCreate(body, req) {
   }
 
   const createdBy = auth.kind === 'admin' ? 'admin' : `master:${auth.masterId}`;
+  const verifiedContacts = await sb(
+    'GET',
+    `notification_contacts?select=telegram_chat_id&phone_e164=eq.${encodeURIComponent(clientPhone)}&telegram_blocked_at=is.null&limit=1`,
+  );
+  const telegramVerified = Array.isArray(verifiedContacts) && !!verifiedContacts[0]?.telegram_chat_id;
+  const reminderChannel = telegramVerified ? 'telegram' : (notificationConsent ? 'sms' : 'none');
 
   let inserted;
   try {
@@ -229,6 +242,9 @@ async function handleCreate(body, req) {
       estimated_price: estimatedPrice,
       client_name: clientName,
       client_phone: clientPhone,
+      client_phone_e164: clientPhone,
+      notification_consent_at: notificationConsentAt,
+      notification_consent_version: notificationConsent ? 'reminders-v1' : null,
       note,
       status: 'scheduled',
       created_by: createdBy,
@@ -253,6 +269,7 @@ async function handleCreate(body, req) {
     `*Услуга:* ${escMd(serviceName) || '—'}`,
     `*Когда:* ${escMd(whenLabel)}`,
     clientName ? `*Клиент:* ${escMd(clientName)}` : null,
+    `*Напоминание:* ${reminderChannel === 'telegram' ? 'Telegram' : reminderChannel === 'sms' ? 'SMS' : 'нет согласия'}`,
     estimatedPrice !== null ? `_Оценка: ${estimatedPrice.toLocaleString('ru-RU')} ₽_` : null,
   ]);
 
@@ -262,6 +279,12 @@ async function handleCreate(body, req) {
     scheduled_at: row?.scheduled_at,
     status: row?.status,
     service_name: serviceName,
+    reminder_channel: reminderChannel,
+    telegram_verified: telegramVerified,
+    notification_consent: notificationConsent,
+    telegram_opt_in_url: notificationConsent && !telegramVerified
+      ? 'https://t.me/nicole_salon_alerts_bot?start=reminders'
+      : null,
   };
 }
 async function handlePatch(body, req) {

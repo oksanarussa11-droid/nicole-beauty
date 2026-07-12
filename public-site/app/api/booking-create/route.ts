@@ -41,6 +41,8 @@ export async function POST(req: Request) {
       client_name: body.client_name.substring(0, 100),
       client_contact: body.client_contact.substring(0, 100),
       contact_method: body.contact_method,
+      notification_consent_at: body.notification_consent === true ? new Date().toISOString() : null,
+      notification_consent_version: body.notification_consent === true ? 'reminders-v1' : null,
       note: body.note ? body.note.substring(0, 500) : null,
       ip,
       user_agent: req.headers.get('user-agent') || 'unknown'

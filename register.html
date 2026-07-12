@@ -819,16 +819,24 @@
           <input class="fld" type="text" id="mApptClient" maxlength="200">
         </div>
         <div>
-          <label class="lbl">Телефон</label>
-          <input class="fld" type="text" id="mApptPhone" maxlength="40" inputmode="tel">
+          <label class="lbl">Телефон *</label>
+          <input class="fld" type="text" id="mApptPhone" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="+7 999 123-45-67" required>
         </div>
         <div style="grid-column:1/-1;">
           <label class="lbl">Заметка</label>
           <input class="fld" type="text" id="mApptNote" maxlength="500">
         </div>
+        <label style="grid-column:1/-1;display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.45;color:var(--ink-soft);">
+          <input type="checkbox" id="mApptConsent" style="margin-top:2px;">
+          <span>Клиент дал согласие получать сервисные напоминания о записи в Telegram или по SMS.</span>
+        </label>
       </div>
       <div style="margin-top:10px;">
         <button class="btn" type="button" onclick="submitNewAppointment()">Создать</button>
+      </div>
+      <div id="mApptTelegramInvite" class="msg ok" style="margin-top:12px;">
+        Для Telegram клиент должен открыть бота и поделиться своим контактом:
+        <a href="https://t.me/nicole_salon_alerts_bot?start=reminders" target="_blank" rel="noopener noreferrer">@nicole_salon_alerts_bot</a>
       </div>
     </details>
 
@@ -1106,8 +1114,10 @@
         return toast('Цена некорректна', true);
       }
       const clientName = $('mApptClient').value.trim() || null;
-      const clientPhone = $('mApptPhone').value.trim() || null;
+      const clientPhone = $('mApptPhone').value.trim();
+      if (!clientPhone) return toast('Укажите телефон для напоминания', true);
       const note = $('mApptNote').value.trim() || null;
+      const notificationConsent = $('mApptConsent').checked;
 
       try {
         const r = await fetch('/api/appointment', {
@@ -1121,6 +1131,7 @@
             estimated_price: estimatedPrice,
             client_name: clientName,
             client_phone: clientPhone,
+            notification_consent: notificationConsent,
             note,
           }),
         });
@@ -1128,10 +1139,14 @@
         if (r.status === 409) return toast('Слот уже занят', true);
         if (r.status === 401) { toast('Неверный PIN, войдите снова', true); logout(); return; }
         if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
-        toast('Запись создана');
+        const reminderLabel = data.reminder_channel === 'telegram' ? 'Telegram' : data.reminder_channel === 'sms' ? 'SMS' : 'нет согласия';
+        toast('Запись создана · напоминание: ' + reminderLabel);
+        const invite = $('mApptTelegramInvite');
+        invite.classList.toggle('show', !!data.telegram_opt_in_url);
         // Clear inputs (keep datetime so the user can book another nearby slot).
         $('mApptClient').value = '';
         $('mApptPhone').value = '';
+        $('mApptConsent').checked = false;
         $('mApptNote').value = '';
         await loadUpcoming();
       } catch (e) {
