@@ -17,6 +17,9 @@ Thumbs.db
 .env.*.local
 service_role.txt
 
+# Row backups written by one-off correction scripts (contain client data)
+*-backup.json
+
 # Node (in case anyone later adds tooling)
 node_modules/
 

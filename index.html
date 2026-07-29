@@ -1384,6 +1384,19 @@
   <div class="stats" id="finStats" style="grid-template-columns:repeat(4,minmax(0,1fr));"></div>
 
   <div class="card">
+    <h2>Комиссии: начислено и выплачено</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px;letter-spacing:.05em;">
+      «Чистая прибыль» считает <b>начисленные</b> комиссии, «Деньги всего» — <b>фактически выплаченные</b>.
+      Разница между ними — единственная причина, по которой эти два числа расходятся.
+    </p>
+    <div id="reconSummary"></div>
+    <table style="margin-top:16px;">
+      <thead><tr><th>Дата</th><th>Мастер</th><th>Начислено</th><th>Выплачено</th><th>Разница</th></tr></thead>
+      <tbody id="reconTable"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
     <h2>Новый доход</h2>
     <div class="form-row">
       <div class="form-group"><label>Дата</label><input type="date" id="incDate"></div>
@@ -2339,6 +2352,86 @@ function escapeText(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// Expenses carry no master_id — the description is the only link back to a master.
+// Longest name wins: «Ира» is a substring of «Ирина», so a first-match lookup would
+// attribute «Ирина» to whichever of the two happens to come first in state.masters.
+// Returns null when nothing matches, so unattributed payouts surface in their own row
+// instead of quietly disappearing from the reconciliation.
+function matchPayoutMaster(desc) {
+  const d = String(desc || '').toLowerCase();
+  let best = null, bestLen = 0;
+  for (const m of state.masters || []) {
+    const name = String(m.name || '').trim().toLowerCase();
+    if (!name || name.length <= bestLen || !d.includes(name)) continue;
+    best = m.id; bestLen = name.length;
+  }
+  return best;
+}
+
+// ── Сверка комиссий: начислено по записям vs фактически выплачено.
+// «Чистая прибыль» строится на начислении, «Деньги всего» — на выплатах, поэтому
+// расхождение между этими двумя суммами ровно равно разнице этих двух карточек.
+// Показываем только дни с расхождением ≥ 1 ₽; копеечная разница от округления
+// выплат до целых рублей выносится отдельной строкой, чтобы итог всегда сходился.
+function renderCommissionRecon(unified, expF) {
+  const summaryEl = document.getElementById('reconSummary');
+  const tableEl   = document.getElementById('reconTable');
+  if (!summaryEl || !tableEl) return;
+
+  const rows = new Map();  // `${date}|${master_id ?? '?'}` → {date, master_id, accrued, paid}
+  const cell = (date, mid) => {
+    const k = `${date}|${mid ?? '?'}`;
+    if (!rows.has(k)) rows.set(k, { date, master_id: mid, accrued: 0, paid: 0 });
+    return rows.get(k);
+  };
+  for (const u of unified) if (u.master_pay) cell(u.date, u.master_id).accrued += u.master_pay;
+  for (const e of expF.filter(isMasterPayoutExpense)) {
+    cell(e.date, matchPayoutMaster(e.description)).paid += Number(e.amount);
+  }
+
+  const all     = [...rows.values()];
+  const accrued = all.reduce((s, r) => s + r.accrued, 0);
+  const paid    = all.reduce((s, r) => s + r.paid,    0);
+  const diff    = paid - accrued;
+  const off     = Math.round(diff) !== 0;
+
+  summaryEl.innerHTML = `
+    <div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr));margin:0;">
+      <div class="stat-card"><div class="stat-label">Начислено комиссий</div><div class="stat-value">${fmt(accrued)}</div></div>
+      <div class="stat-card"><div class="stat-label">Выплачено мастерам</div><div class="stat-value">${fmt(paid)}</div></div>
+      <div class="stat-card${off ? '' : ' green'}">
+        <div class="stat-label">${diff > 0 ? 'Переплата' : diff < 0 ? 'Ещё не выплачено' : 'Разница'}</div>
+        <div class="stat-value"${off ? ' style="color:var(--danger,#c0392b)"' : ''}>${diff > 0 ? '+' : ''}${fmt(diff)}</div>
+      </div>
+    </div>`;
+
+  const mismatches = all
+    .filter(r => Math.abs(r.paid - r.accrued) >= 1)
+    .sort((a, b) => Math.abs(b.paid - b.accrued) - Math.abs(a.paid - a.accrued) || a.date.localeCompare(b.date));
+  const rounding = diff - mismatches.reduce((s, r) => s + (r.paid - r.accrued), 0);
+
+  const body = mismatches.map(r => {
+    const d = r.paid - r.accrued;
+    return `<tr>
+      <td>${fmtDate(r.date)}</td>
+      <td>${r.master_id == null
+            ? '<span style="color:var(--danger,#c0392b)">не распознан</span>'
+            : escapeText(masterName(r.master_id))}</td>
+      <td>${fmt(r.accrued)}</td>
+      <td>${fmt(r.paid)}</td>
+      <td style="color:var(--danger,#c0392b);font-weight:bold;">${d > 0 ? '+' : ''}${fmt(d)}</td>
+    </tr>`;
+  }).join('');
+
+  const roundRow = Math.round(rounding) === 0 ? '' : `<tr>
+    <td colspan="4" style="color:var(--muted);font-size:12px;">Округление выплат до целых рублей</td>
+    <td style="color:var(--muted);">${rounding > 0 ? '+' : ''}${fmt(rounding)}</td>
+  </tr>`;
+
+  tableEl.innerHTML = (body + roundRow) ||
+    '<tr><td colspan="5" class="empty-msg">Расхождений нет — начислено и выплачено сходятся</td></tr>';
+}
+
 function renderFinance() {
   const month = val('finMonth');
   const incF = state.income.filter(i => matchMonth(i.date, month));
@@ -2383,6 +2476,8 @@ function renderFinance() {
     <div class="stat-card green"><div class="stat-label">Безналичные (Банк)</div><div class="stat-value">${fmt(bankBal)}</div></div>
     <div class="stat-card green"><div class="stat-label">Деньги всего (Касса + Банк)</div><div class="stat-value">${fmt(cashBal + bankBal)}</div></div>
   `;
+
+  renderCommissionRecon(unified, expF);
 
   document.getElementById('incTable').innerHTML = incF.length === 0
     ? '<tr><td colspan="6" class="empty-msg">Нет доходов</td></tr>'
